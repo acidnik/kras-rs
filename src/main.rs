@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::error;
 use std::io::BufReader;
 use std::io::BufRead;
+use std::fmt;
 
 
 extern crate clap;
@@ -12,19 +13,56 @@ use clap::{Arg, App};
 extern crate fileinput;
 use fileinput::FileInput;
 
+#[derive(Debug)]
 enum Token {
     SquareOpen,
     SquareClose,
     Str(String),
+    Colon,
+    FatComma, // =>
+    Comma,
+    Semicolon,
+    Equal,
+    BraceOpen,
+    BraceClose,
+    BracketOpen,
+    BracketClose,
     // StringStart(String),
     // StringEnd(String),
     Unknown(String),
     Space(String),
 }
 
+impl Token {
+    fn to_string(&self) -> String {
+        match self {
+            Token::SquareOpen => "[",
+            Token::SquareClose => "]",
+            Token::Str(ref s) => s,
+            Token::Colon => ":",
+            Token::FatComma => "=>",
+            Token::Comma => ",",
+            Token::Semicolon => ";",
+            Token::Equal => "=",
+            Token::BraceOpen => "{",
+            Token::BraceClose => "}",
+            Token::BracketOpen => "(",
+            Token::BracketClose => ")",
+            Token::Unknown(ref s) => s,
+            Token::Space(ref s) => s,
+        }.to_string()
+    }
+}
+
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        write!(f, "{}", self.to_string())
+    }
+}
+
 struct Scanner {
     input: Vec<char>,
-    tokens: Vec<String>,
+    tokens: Vec<Token>,
     current: usize,
     start: usize,
 }
@@ -49,22 +87,56 @@ impl Scanner {
     }
 
     fn at_end(&self) -> bool {
-        self.current < self.input.len()
+        self.current >= self.input.len()
     }
     
     fn scan_token(&mut self) {
+        if self.at_end() {
+            return
+        }
         let c = self.advance();
         let token = match c {
             '[' => Token::SquareOpen,
             ']' => Token::SquareClose,
+            '{' => Token::BraceOpen,
+            '}' => Token::BraceClose,
+            '(' => Token::BracketOpen,
+            ')' => Token::BracketClose,
+            ':' => Token::Colon,
+            ',' => Token::Comma,
+            ';' => Token::Semicolon,
+            '=' => {
+                if self.check_match('>') {
+                    Token::FatComma
+                }
+                else {
+                    Token::Equal
+                }
+            },
             '"' => self.string(),
+            _ if c.is_whitespace() => self.space(),
             _ => Token::Unknown(c.to_string()),
         };
+        self.tokens.push(token);
+    }
+
+    fn space(&mut self) -> Token {
+        while ! self.at_end() && self.peek().is_whitespace() {
+            self.advance();
+        }
+        Token::Space(self.curr_string())
     }
 
     fn string(&mut self) -> Token {
-        while self.peek() != '"' && ! self.at_end() {
-            self.advance();
+        while ! self.at_end() {
+            let c = self.advance();
+            if c == '\\' && ! self.at_end() {
+                self.advance();
+                continue
+            }
+            if c == '"' {
+                break
+            }
         }
         if self.at_end() {
             return Token::Unknown(self.curr_string())
@@ -73,12 +145,47 @@ impl Scanner {
     }
 
     fn curr_string(&self) -> String {
-        self.input[self.start + 1 .. self.current - 1].collect()
+        self.input[self.start .. self.current].iter().collect()
+    }
+
+    fn check_match(&mut self, c: char) -> bool {
+        if self.at_end() {
+            false
+        }
+        else {
+            if self.input[self.current] == c {
+                self.current += 1;
+                true
+            }
+            else {
+                false
+            }
+        }
     }
 
     fn advance(&mut self) -> char {
+        // println!("{:?} [{}]", self.input, self.current);
         self.current += 1;
         self.input[self.current-1]
+    }
+
+    fn peek(&self) -> char {
+        self.input[self.current]
+    }
+}
+
+struct Parser {
+
+}
+
+impl Parser {
+    fn new() -> Self {
+        Parser {}
+    }
+    fn parse(&self, tokens: &Vec<Token>) {
+        for token in tokens {
+
+        }
     }
 }
 
@@ -109,14 +216,25 @@ fn main() {
              .multiple(true)
         )
         .get_matches();
-    let files = matches.values_of("input").unwrap().collect::<Vec<_>>();
+    let files = matches.values_of("input").map(|fs| fs.collect::<Vec<_>>()).unwrap_or(Vec::new());
+    // let files = if matches.is_present("input"){
+    //     matches.values_of("input").unwrap().collect::<Vec<_>>()
+    // }
+    // else {
+    //     vec![]
+    // };
     let input = FileInput::new(&files);
     let mut reader = BufReader::new(input);
     for line in reader.lines() {
         match line {
             Ok(s) => {
-                let mut s = Scanner::new(&s);
-                s.scan();
+                let mut scanner = Scanner::new(&s);
+                println!("{}", s);
+                scanner.scan();
+                for t in scanner.tokens {
+                    print!("{}", t);
+                }
+                println!("");
                 // for data in DetectData::new(&s) {
                 //     let s = Scanner::new(data);
                 // }
