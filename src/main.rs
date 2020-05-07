@@ -18,41 +18,111 @@ use fileinput::FileInput;
 extern crate pom;
 use pom::parser::*;
 use pom::char_class::*;
-// use pom::Parser;
 
 #[derive(Debug)]
 enum KrasValue {
     Str(String),
     PairDelim(String),
     ListDelim(String),
+
+    // pair delim | list_delim
     Delim(Box<KrasValue>),
+
+    // value, delim
     ListItem(Box<(KrasValue, Option<KrasValue>)>),
-    List(Vec<KrasValue>),
-    Tuple(Vec<KrasValue>),
+
+    // open brace, values
+    List((String, Vec<KrasValue>)),
     Ident(String),
+
+    // ident, list
+    Constructor(Box<(KrasValue, KrasValue)>),
     Num(f64),
+}
+
+struct PrettyPrint {
+    indent: usize,
+    sort: bool,
+    color: bool,
+    min_len: usize,
 }
 
 fn pad(i: usize, l: usize) -> String {
     std::iter::repeat(" ").take(i*l).collect()
 }
 
-impl KrasValue {
-    fn pretty(&self, ident: usize, level: usize) -> String {
-        match self {
-            KrasValue::Str(ref s) => s.to_string(),
-            KrasValue::List(ref v) => "[\n".to_string() 
-                + &v.iter().map(|x| x.pretty(ident, level+1)).collect::<String>() 
-                + "\n]",
-            KrasValue::PairDelim(ref s) => s.to_string(),
-            KrasValue::ListDelim(ref s) => s.to_string(),
-            KrasValue::ListItem(ref kv) =>  kv.0.pretty(ident, level) 
-                // + " "
-                + &kv.1.as_ref().map_or("".to_string(), |v| v.pretty(ident, level)),
-            KrasValue::Num(n) => n.to_string(),
-            KrasValue::Tuple(ref v) => "(".to_string() + &v.iter().map(|x| x.pretty(ident, level+1)).collect::<String>() + ")",
-            _ => format!("<<<< ??? {:?} ??? >>>>", self),
+fn close(s: &str) -> String {
+    match s {
+        "[" => "]",
+        "{" => "}",
+        "(" => ")",
+        _ => panic!("parsed bad array"),
+    }.to_string()
+}
+
+enum PrettyData {
+    Leaf(String),
+    Nested(Vec<PrettyData>),
+}
+
+impl PrettyPrint {
+    fn new(indent: usize, sort: bool, color: bool, min_len: usize) -> Self {
+        PrettyPrint {indent, sort, color, min_len}
+    }
+
+    fn indent_data(&self, p: &PrettyData, level: usize) -> String {
+        use PrettyData::*;
+        match p {
+            Leaf(s) => pad(self.indent, level) + s,
+            Nested(s) => pad(self.indent, level) + &s.iter().map(|x| self.indent_data(x, level+1)).collect::<String>(),
         }
+    }
+
+    fn pretty_vec(&self, v: &KrasValue) -> PrettyData {
+        use PrettyData::*;
+        match v {
+            KrasValue::Str(_) => Leaf(self.pretty(&v)),
+            KrasValue::List((ref s, ref v)) => Nested(vec![
+                Leaf(s.to_string()),
+                Nested(v.iter().map(|x| self.pretty_vec(&x)).collect::<Vec<PrettyData>>()),
+                Leaf(close(s))
+            ]),
+            KrasValue::PairDelim(_) => Leaf(self.pretty(&v)),
+            KrasValue::Ident(_) => Leaf(self.pretty(&v)),
+            KrasValue::ListDelim(_) => Leaf(self.pretty(&v)),
+            KrasValue::ListItem(ref kv) =>  Nested(vec![
+                self.pretty_vec(&kv.0), // the item
+                Leaf(kv.1.as_ref().map_or("".to_string(), |v| self.pretty(&v))) // the separator
+            ]),
+            KrasValue::Num(_) => Leaf(self.pretty(&v)),
+            KrasValue::Constructor(ref nv) => Nested(vec![
+                Leaf(self.pretty(&nv.0)), // ident
+                self.pretty_vec(&nv.1) // args
+            ]),
+            _ => Leaf(format!("<<<< ??? {:?} ??? >>>>", v)),
+        }
+    }
+
+    fn pretty(&self, v: &KrasValue) -> String {
+        match v {
+            KrasValue::Str(ref s) => r#"""#.to_string() + &s.to_string() + r#"""#,
+            // KrasValue::List((ref s, ref v)) => s.to_string() + "\n"
+            //     + &v.iter().map(|x| self.pretty(&x)).collect::<String>() 
+            //     + "\n" + &close(s),
+            KrasValue::PairDelim(ref s) => s.to_string(),
+            KrasValue::Ident(ref s) => s.to_string(),
+            KrasValue::ListDelim(ref s) => s.to_string(),
+            // KrasValue::ListItem(ref kv) =>  self.pretty(&kv.0) 
+            //     + &kv.1.as_ref().map_or("".to_string(), |v| self.pretty(&v)),
+            KrasValue::Num(n) => n.to_string(),
+            // KrasValue::Constructor(ref nv) => self.pretty(&nv.0) + &self.pretty(&nv.1),
+            _ => format!("<<<< ??? {:?} ??? >>>>", v),
+        }
+    }
+
+    fn pretty_indent(&self, v: &KrasValue) -> String {
+        let data = self.pretty_vec(&v);
+        self.indent_data(&data, 0)
     }
 }
 
@@ -62,7 +132,8 @@ fn space<'a>() -> Parser<'a, u8, ()> {
 
 fn ident<'a>() -> Parser<'a, u8, String> {
     let first = is_a(alpha);
-    let rest = is_a(alphanum);
+    let dot = sym(b'.');
+    let rest = is_a(alphanum) | dot;
     let ident = first + rest.repeat(0..);
     ident.collect().convert(str::from_utf8).map(|s| s.to_string())
 }
@@ -95,21 +166,32 @@ fn array_delim<'a>() -> Parser<'a, u8, KrasValue> {
 }
 
 fn list_item<'a>() -> Parser<'a, u8, KrasValue> {
-    let delim = call(value) + (array_delim() | pair_delim()).opt();
+    let delim = call(inner_value) + (array_delim() | pair_delim()).opt();
     delim.map(|(a, b)| KrasValue::ListItem(Box::new((a,b))))
 }
 
-fn array<'a>() -> Parser<'a, u8, Vec<KrasValue>> {
-    // let elems = list(call(list_item), delim);
-    let elems = list_item().repeat(0..);
-    sym(b'[') * space() * elems - sym(b']')
+fn array<'a>() -> Parser<'a, u8, (String, Vec<KrasValue>)> {
+    let arr = sym(b'[') + space() * list_item().repeat(0..) - sym(b']');
+    let set = sym(b'{') + space() * list_item().repeat(0..) - sym(b'}');
+    let tup = sym(b'(') + space() * list_item().repeat(0..) - sym(b')');
+    (arr | set | tup).map(|(a, b)| (std::str::from_utf8(&[a]).unwrap_or("").to_string(), b))
+}
+
+fn constructor<'a>() -> Parser<'a, u8, KrasValue> {
+    let res = ident() - space() + array();
+    res.map(|(a, b)| KrasValue::Constructor(Box::new((KrasValue::Ident(a), KrasValue::List(b)))))
+}
+
+fn inner_value<'a>() -> Parser<'a, u8, KrasValue> {
+    value() | ident().map(|s| KrasValue::Ident(s))
 }
 
 fn value<'a>() -> Parser<'a, u8, KrasValue> {
     (
         string().map(|s| KrasValue::Str(s))
         | number().map(|n| KrasValue::Num(n))
-        | array().map(|arr| KrasValue::List(arr))
+        | constructor()
+        | array().map(|(s, arr)| KrasValue::List((s, arr)))
     ) - space()
 }
 
@@ -126,7 +208,7 @@ fn main() {
              .short("i")
              .long("indent")
              .help("indentation. 0 to disable (but still color output)")
-             .default_value("4")
+             .default_value("2")
         )
         .arg(Arg::with_name("color")
             .short("c")
@@ -150,9 +232,14 @@ fn main() {
              .help("Input files or stdin")
         )
         .get_matches();
+    let indent = usize::from_str(matches.value_of("indent").unwrap()).unwrap();
+    let min_len = usize::from_str(matches.value_of("min_len").unwrap()).unwrap();
     let files = matches.values_of("input").map(|fs| fs.collect::<Vec<_>>()).unwrap_or(Vec::new());
+    let color = matches.is_present("color");
+    let sort = matches.is_present("sort");
     let input = FileInput::new(&files);
     let reader = BufReader::new(input);
+    let printer = PrettyPrint::new(indent, sort, color, min_len);
     // let mut buf = Vec::new();
     for line in reader.lines() {
         match line {
@@ -163,7 +250,7 @@ fn main() {
                 let r = kras().parse(&buf);
                 println!("{} ===>>> {:?}", s, r);
                 if let Ok(r) = r {
-                    println!("{}", r.pretty(4, 0))
+                    println!("{}", printer.pretty_indent(&r));
                 }
             }
             Err(err) => println!("{:?}", err),
