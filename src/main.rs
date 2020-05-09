@@ -1,12 +1,8 @@
-// use std::fs::File;
-// use std::io::{self, Lines};
-// use std::path::PathBuf;
-// use std::error;
+#![cfg_attr(debug_assertions, allow(dead_code, unused_imports))]
+
 use std::io::BufReader;
 use std::io::BufRead;
-// use std::fmt;
 use std::str::{self, FromStr};
-// use std::collections::HashMap;
 
 
 extern crate clap;
@@ -21,18 +17,27 @@ use pom::char_class::*;
 
 #[derive(Debug)]
 enum KrasValue {
+    // quoted string
     Str(String),
+
+    // dict delimeter
     PairDelim(String),
+    // array delimeter
     ListDelim(String),
 
     // pair delim | list_delim
     Delim(Box<KrasValue>),
 
-    // value, delim
-    ListItem(Box<(KrasValue, Option<KrasValue>)>),
+    // value, delim?
+    ListItem(Box<(KrasValue, Option<String>)>),
+
+    // value, delim, value, delim2?
+    Pair(Box<(KrasValue, String, KrasValue, Option<String>)>),
 
     // open brace, values
     List((String, Vec<KrasValue>)),
+
+    // a literal identificator
     Ident(String),
 
     // ident, list
@@ -64,6 +69,18 @@ enum PrettyData {
     Leaf(String),
     Nested(Vec<PrettyData>),
 }
+
+/*
+postprocess(v):
+    prepare_dict()
+    prepare_lists()
+    array => Vec<ArrayItem>
+    dict => Vec<Pair>
+    ArrayItem => (Item, Opt<Comma>)
+    Pair => (Item, Comma, Item, Opt<Comma>)
+pretty(v)
+
+*/
 
 impl PrettyPrint {
     fn new(indent: usize, sort: bool, color: bool, min_len: usize) -> Self {
@@ -147,6 +164,7 @@ fn number<'a>() -> Parser<'a, u8, f64> {
 }
 
 fn string<'a>() -> Parser<'a, u8, String> {
+    // TODO single-quoted
     let special_char = sym(b'\\') | sym(b'/') | sym(b'"')
         | sym(b'b').map(|_|b'\x08') | sym(b'f').map(|_|b'\x0C')
         | sym(b'n').map(|_|b'\n') | sym(b'r').map(|_|b'\r') | sym(b't').map(|_|b'\t');
@@ -156,7 +174,7 @@ fn string<'a>() -> Parser<'a, u8, String> {
 }
 
 fn pair_delim<'a>() -> Parser<'a, u8, KrasValue> {
-    let delim = space() * (seq(b":") | seq(b"=>")) - space();
+    let delim = space() * (seq(b":") | seq(b"=>") | seq(b"=")) - space();
     delim.collect().convert(std::str::from_utf8).map(|s| KrasValue::PairDelim(s.to_string())) 
 }
 
@@ -171,6 +189,7 @@ fn list_item<'a>() -> Parser<'a, u8, KrasValue> {
 }
 
 fn array<'a>() -> Parser<'a, u8, (String, Vec<KrasValue>)> {
+    // (a=>b, c => d) => [ (a=>) (b,) (c=>) (d) ]
     let arr = sym(b'[') + space() * list_item().repeat(0..) - sym(b']');
     let set = sym(b'{') + space() * list_item().repeat(0..) - sym(b'}');
     let tup = sym(b'(') + space() * list_item().repeat(0..) - sym(b')');
