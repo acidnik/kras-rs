@@ -10,3 +10,5 @@ edition = "2018"
 clap = '*'
 fileinput = "*"
 pom = '*'
+pretty = '0.10.0'
+termcolor = '*'
