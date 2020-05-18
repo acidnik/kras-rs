@@ -1,10 +1,10 @@
+// disable some warnings for debug build
 #![cfg_attr(debug_assertions, allow(dead_code, unused_imports, unused_mut, unused_variables))]
 
 use std::io::BufReader;
 use std::io::BufRead;
 use std::str::{self, FromStr};
 use std::cmp::Ordering;
-
 
 extern crate clap;
 use clap::{Arg, App};
@@ -75,11 +75,14 @@ impl KrasValue {
         // convert lists to dicts, sort
         match self {
             KrasValue::List((ref o, ref items, ref c)) => {
+                // if list looks like python dict / js object / perl hash / etc: convert ListItems
+                // to Pairs
                 // {key1: val1, key2: val2} => [ (key1, :), (val1, ,), (key2, :), (val2, ())] => [ (key1, :, val1, ,), (key2, :, val2, ()) ]
                 if items.len() % 2 == 0 {
                     let mut is_dict = true;
                     for (i, item) in items.iter().enumerate() {
                         if i % 2 == 0 {
+                            // each even list item delimeter must be a dict separator
                             if let KrasValue::ListItem((_, Some(d))) = item {
                                 if ! (d == "=>" || d == ":" || d == "=") {
                                     is_dict = false;
@@ -95,19 +98,10 @@ impl KrasValue {
                             if let [k, v] = kv {
                                 if let KrasValue::ListItem(k) = k {
                                     if let KrasValue::ListItem(v) = v {
-                                        // // (a => 1, b => 2); len = 4; i = 0, 1
-                                        // let comma = if i == items.len() / 2 - 1  {
-                                        //     None
-                                        // }
-                                        // else {
-                                        //     // Some(d) => Some(d); None => Some(",")
-                                        //     v.1.clone().or(Some(",".to_string()))
-                                        // };
                                         res.push(KrasValue::Pair(( 
                                             Box::new(k.0.clone().postprocess(sort)),
                                             k.1.clone().unwrap(),
                                             Box::new(v.0.clone().postprocess(sort)),
-                                            // comma,
                                             v.1.clone()
                                         )))
                                     }
@@ -115,7 +109,8 @@ impl KrasValue {
                             }
                         }
                         if sort {
-                            res.sort()
+                            res.sort();
+                            self.fix_comma(&mut res);
                         }
                         self = KrasValue::List((o.to_string(), res, c.to_string()));
                     }
@@ -129,6 +124,26 @@ impl KrasValue {
             _ => {},
         }
         self
+    }
+    fn fix_comma(&self, list: &mut Vec<KrasValue>) {
+        // {"2": 2, "1": 1} => sort => {"1": 1<no comma> "2": 2,<extra comma>} 
+        // => fix => {"1": 1,<add comma> "2": 2<remove comma> } => {"1": 1, "2": 2}
+        let len = list.len();
+        for (i, mut item) in list.iter_mut().enumerate() {
+            if let KrasValue::Pair((k, d, v, d2)) = item {
+                match (d2.is_some(), i == len-1) {
+                    (true, true) => {
+                        let d2 = None;
+                        *item = KrasValue::Pair((k.clone(), d.to_string(), v.clone(), d2))
+                    },
+                    (false, false) => {
+                        let d2 = Some(",".to_string());
+                        *item = KrasValue::Pair((k.clone(), d.to_string(), v.clone(), d2))
+                    }
+                    _ => {},
+                }
+            }
+        }
     }
 }
 
@@ -146,8 +161,9 @@ impl KrasValue {
             _ => panic!(format!("unexpected kv delim {}", d)),
         }
     }
+
     fn to_doc(&self, indent: usize) -> RcDoc<()> {
-        let nest = indent as isize;
+        let nest = indent as isize; // why tf _i_size?
         match self {
             // TODO quotes
             KrasValue::Str(s) => RcDoc::as_string(r#"""#.to_string() + s + r#"""#),
@@ -155,11 +171,12 @@ impl KrasValue {
             KrasValue::List((op, it, cl)) => {
                 RcDoc::text(op)
                     .append(RcDoc::nil()
-                        .append(RcDoc::softline_())
+                        .append(RcDoc::line_())
                         .nest(nest)
                         .append(RcDoc::intersperse(it.iter().map(|x| x.to_doc(indent)), RcDoc::softline_())
                         .nest(nest)
                         .append(Doc::line_()))
+                        .group()
                     )
                     .append(cl)
             },
@@ -173,11 +190,15 @@ impl KrasValue {
                         .append(self.kv_spaces(d.to_string()))
                         .group()
                     )
-                    // value
-                    .append(v.to_doc(indent))
-                    // list delim
-                    .append(d2.clone().map_or(RcDoc::nil(), |d| self.kv_spaces(d.to_string())))
-                    .group()
+                    .append(
+                        // value
+                        RcDoc::nil()
+                        .append(v.to_doc(indent))
+                        // list delim
+                        .append(d2.clone().map_or(RcDoc::nil(), |d| self.kv_spaces(d.to_string())))
+                        .group()
+                        .append(Doc::line_())
+                    )
             },
             KrasValue::ListItem((v, d)) => {
                 RcDoc::nil()
@@ -186,7 +207,6 @@ impl KrasValue {
             }
             KrasValue::Num(OrdF64(n)) => RcDoc::as_string(n),
             KrasValue::Constructor((id, args)) => {
-                println!("args {:?}", args);
                 RcDoc::nil()
                     .append(id.to_doc(indent))
                     .append(args.to_doc(indent))
