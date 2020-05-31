@@ -5,6 +5,7 @@ use std::io::BufReader;
 use std::io::BufRead;
 use std::str::{self, FromStr};
 use std::cmp::Ordering;
+use std::iter::FromIterator;
 
 extern crate clap;
 use clap::{Arg, App};
@@ -48,8 +49,8 @@ impl PartialOrd for OrdF64 {
 
 #[derive(Debug, Clone, Ord, Eq, PartialEq, PartialOrd)]
 enum KrasValue {
-    // quoted string TODO store quote symbol
-    Str(String),
+    // quoted string
+    Str((char, String)),
 
     // value, delim?
     ListItem((Box<KrasValue>, Option<String>)),
@@ -148,17 +149,18 @@ impl KrasValue {
 }
 
 impl KrasValue {
-    // TODO: '=>' - spaces around
-    // ':' - spaces to the right ': '
-    // '=' - no spaces
     fn kv_spaces(&self, d: String) -> RcDoc<()> {
+        // '=>' - spaces around
+        // ':' - spaces to the right ': '
+        // '=' - no spaces
+        // ',' - ', '
         let ds: &str = &d;
         match ds {
             "=>" => RcDoc::space().append(RcDoc::text(d)).append(RcDoc::space()),
             ":"  => RcDoc::text(d).append(RcDoc::space()),
             "="  => RcDoc::text(d),
             ","  => RcDoc::text(d).append(RcDoc::space()),
-            _ => panic!(format!("unexpected kv delim {}", d)),
+            _ => panic!(format!("unexpected kv delim ['{}']", d)),
         }
     }
 
@@ -166,7 +168,7 @@ impl KrasValue {
         let nest = indent as isize; // why tf _i_size?
         match self {
             // TODO quotes
-            KrasValue::Str(s) => RcDoc::as_string(r#"""#.to_string() + s + r#"""#),
+            KrasValue::Str((q, s)) => RcDoc::as_string(q.to_string() + s + &q.to_string()),
             KrasValue::Ident(s) => RcDoc::as_string(s),
             KrasValue::List((op, it, cl)) => {
                 RcDoc::text(op)
@@ -217,79 +219,95 @@ impl KrasValue {
 }
 
 
-fn space<'a>() -> Parser<'a, u8, ()> {
-    one_of(b" \t\r\n").repeat(0..).discard()
+fn space<'a>() -> Parser<'a, char, ()> {
+    one_of(" \t\r\n").repeat(0..).discard()
 }
 
-fn ident<'a>() -> Parser<'a, u8, String> {
-    let first = is_a(alpha);
-    let dot = sym(b'.');
-    let rest = is_a(alphanum) | dot;
+fn ident<'a>() -> Parser<'a, char, String> {
+    let first = is_a(|c: char| c.is_alphabetic());
+    let dot = sym('.');
+    let rest = is_a(|c: char| c.is_alphanumeric()) | dot;
     let ident = first + rest.repeat(0..);
-    ident.collect().convert(str::from_utf8).map(|s| s.to_string())
+    ident.collect().map(String::from_iter)
 }
 
-fn number<'a>() -> Parser<'a, u8, f64> {
-    let integer = one_of(b"123456789") - one_of(b"0123456789").repeat(0..) | sym(b'0');
-    let frac = sym(b'.') + one_of(b"0123456789").repeat(1..);
-    let exp = one_of(b"eE") + one_of(b"+-").opt() + one_of(b"0123456789").repeat(1..);
-    let number = sym(b'-').opt() + integer + frac.opt() + exp.opt();
-    number.collect().convert(str::from_utf8).convert(|s|f64::from_str(&s))
+fn number<'a>() -> Parser<'a, char, f64> {
+    let integer = one_of("123456789") - one_of("0123456789").repeat(0..) | sym('0');
+    let frac = sym('.') + one_of("0123456789").repeat(1..);
+    let exp = one_of("eE") + one_of("+-").opt() + one_of("0123456789").repeat(1..);
+    let number = sym('-').opt() + integer + frac.opt() + exp.opt();
+    number.collect().map(String::from_iter).convert(|s| f64::from_str(&s))
 }
 
-fn string<'a>() -> Parser<'a, u8, String> {
-    // TODO single-quoted
-    let special_char = sym(b'\\') | sym(b'/') | sym(b'"')
-        | sym(b'b').map(|_|b'\x08') | sym(b'f').map(|_|b'\x0C')
-        | sym(b'n').map(|_|b'\n') | sym(b'r').map(|_|b'\r') | sym(b't').map(|_|b'\t');
-    let escape_sequence = sym(b'\\') * special_char;
-    let string = sym(b'"') * (none_of(b"\\\"") | escape_sequence).repeat(0..) - sym(b'"');
-    string.convert(String::from_utf8)
+fn qqstring<'a>() -> Parser<'a, char, (char, String)> {
+    let special_char = sym('\\') | sym('/') | sym('"')
+        | sym('b').map(|_|'\x08') | sym('f').map(|_|'\x0C')
+        | sym('n').map(|_|'\n') | sym('r').map(|_|'\r') | sym('t').map(|_|'\t');
+    let escape_sequence = sym('\\') * special_char;
+    let string = sym('"') + (none_of("\\\"") | escape_sequence).repeat(0..) - sym('"');
+    string.map(|(a, b)| (a, b.iter().collect()))
 }
 
-fn pair_delim<'a>() -> Parser<'a, u8, String> {
-    let delim = space() * (seq(b":") | seq(b"=>") | seq(b"=")) - space();
-    delim.convert(std::str::from_utf8).map(|x| x.to_string())
+fn qstring<'a>() -> Parser<'a, char, (char, String)> {
+    let special_char = sym('\\') | sym('/') | sym('"')
+        | sym('b').map(|_|'\x08') | sym('f').map(|_|'\x0C')
+        | sym('n').map(|_|'\n') | sym('r').map(|_|'\r') | sym('t').map(|_|'\t');
+    let escape_sequence = sym('\\') * special_char;
+    let string = sym('\'') + (none_of("\\\'") | escape_sequence).repeat(0..) - sym('\'');
+    string.map(|(a, b)| (a, b.iter().collect()))
 }
 
-fn array_delim<'a>() -> Parser<'a, u8, String> {
-    let delim = space() * seq(b",") - space();
-    delim.convert(std::str::from_utf8).map(|x| x.to_string())
+fn string<'a>() -> Parser<'a, char, KrasValue> {
+    let string = qqstring() | qstring();
+
+    string.map(|(a, b)| KrasValue::Str((a, b)))
 }
 
-fn list_item<'a>() -> Parser<'a, u8, KrasValue> {
+fn pair_delim<'a>() -> Parser<'a, char, String> {
+    let delim = space() * (seq(&[':']) | seq(&['=','>']) | seq(&['='])) - space();
+    // delim.collect().map(String::from_iter)
+    delim.map(String::from_iter)
+}
+
+fn array_delim<'a>() -> Parser<'a, char, String> {
+    let delim = space() * sym(',') - space();
+    // delim.map(String::from_iter)
+    delim.map(|c| c.to_string())
+}
+
+fn list_item<'a>() -> Parser<'a, char, KrasValue> {
     let delim = call(inner_value) + (array_delim() | pair_delim()).opt();
     delim.map(|(a, b)| KrasValue::ListItem((Box::new(a), b)))
 }
 
-fn array<'a>() -> Parser<'a, u8, (String, Vec<KrasValue>, String)> {
+fn array<'a>() -> Parser<'a, char, (String, Vec<KrasValue>, String)> {
     // parse array | set | dict | tuple | etc
     // (a=>b, c => d) => [ (a=>) (b,) (c=>) (d) ]
-    let arr = sym(b'[') + space() * list_item().repeat(0..) + sym(b']');
-    let set = sym(b'{') + space() * list_item().repeat(0..) + sym(b'}');
-    let tup = sym(b'(') + space() * list_item().repeat(0..) + sym(b')');
-    (arr | set | tup).map(|((a, b), c)| (std::str::from_utf8(&[a]).unwrap().to_string(), b, std::str::from_utf8(&[c]).unwrap().to_string() ))
+    let arr = sym('[') + space() * list_item().repeat(0..) + sym(']');
+    let set = sym('{') + space() * list_item().repeat(0..) + sym('}');
+    let tup = sym('(') + space() * list_item().repeat(0..) + sym(')');
+    (arr | set | tup).map(|((a, b), c)| (a.to_string(), b, c.to_string() ))
 }
 
-fn constructor<'a>() -> Parser<'a, u8, KrasValue> {
+fn constructor<'a>() -> Parser<'a, char, KrasValue> {
     let res = ident() - space() + array();
     res.map(|(a, b)| KrasValue::Constructor((Box::new(KrasValue::Ident(a)), Box::new(KrasValue::List(b)))))
 }
 
-fn inner_value<'a>() -> Parser<'a, u8, KrasValue> {
+fn inner_value<'a>() -> Parser<'a, char, KrasValue> {
     value() | ident().map(|s| KrasValue::Ident(s))
 }
 
-fn value<'a>() -> Parser<'a, u8, KrasValue> {
+fn value<'a>() -> Parser<'a, char, KrasValue> {
     (
-        string().map(|s| KrasValue::Str(s))
+        string()
         | number().map(|n| KrasValue::Num(OrdF64(n)))
         | constructor()
         | array().map(|(s, arr, c)| KrasValue::List((s, arr, c)))
     ) - space()
 }
 
-fn kras<'a>() -> Parser<'a, u8, KrasValue> {
+fn kras<'a>() -> Parser<'a, char, KrasValue> {
     space() * value() - end()
 }
 
@@ -343,11 +361,12 @@ fn main() {
                 if s.starts_with("//") {
                     continue
                 }
-                let buf = s.as_bytes().iter().map(|x| *x).collect::<Vec<u8>>();
+                let buf = s.chars().collect::<Vec<_>>();
+                // let buf = s.as_bytes().iter().map(|x| *x).collect::<Vec<u8>>();
                 // let buf = r#"["a": "c", ["b"]]"#.as_bytes().iter().map(|x| *x).collect::<Vec<u8>>();
                 // let buf = b"{}";
                 let mut r = kras().parse(&buf);
-                // println!("{} ===>>> {:?}", s, r);
+                println!("{} ===>>> {:?}", s, r);
                 if let Ok(mut r) = r {
                     r = r.postprocess(sort);
                     let mut res = Vec::new();
