@@ -20,8 +20,7 @@ use pom::char_class::*;
 extern crate pretty;
 use pretty::*;
 
-extern crate termcolor;
-use termcolor::{Color, ColorSpec};
+use pretty::termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
 
 
 #[derive(Debug, Clone)]
@@ -149,7 +148,7 @@ impl KrasValue {
 }
 
 impl KrasValue {
-    fn kv_spaces(&self, d: String) -> RcDoc<()> {
+    fn kv_spaces(&self, d: String) -> RcDoc<ColorSpec> {
         // '=>' - spaces around
         // ':' - spaces to the right ': '
         // '=' - no spaces
@@ -164,14 +163,16 @@ impl KrasValue {
         }
     }
 
-    fn to_doc(&self, indent: usize) -> RcDoc<()> {
+    fn to_doc(&self, indent: usize) -> RcDoc<ColorSpec> {
         let nest = indent as isize; // why tf _i_size?
         match self {
-            // TODO quotes
-            KrasValue::Str((q, s)) => RcDoc::as_string(q.to_string() + s + &q.to_string()),
-            KrasValue::Ident(s) => RcDoc::as_string(s),
+            KrasValue::Str((q, s)) => RcDoc::as_string(q.to_string() + s + &q.to_string())
+                .annotate(ColorSpec::new().set_fg(Some(Color::Red)).clone()),
+            KrasValue::Ident(s) => RcDoc::as_string(s)
+                .annotate(ColorSpec::new().set_fg(Some(Color::Blue)).clone()),
             KrasValue::List((op, it, cl)) => {
                 RcDoc::text(op)
+                    .annotate(ColorSpec::new().set_bold(true).clone())
                     .append(RcDoc::nil()
                         .append(RcDoc::line_())
                         .nest(nest)
@@ -180,7 +181,10 @@ impl KrasValue {
                         .append(Doc::line_()))
                         .group()
                     )
-                    .append(cl)
+                    .append(RcDoc::nil()
+                        .append(cl)
+                        .annotate(ColorSpec::new().set_bold(true).clone())
+                    )
             },
             KrasValue::Pair((k, d, v, d2)) => {
                 RcDoc::nil()
@@ -265,13 +269,11 @@ fn string<'a>() -> Parser<'a, char, KrasValue> {
 
 fn pair_delim<'a>() -> Parser<'a, char, String> {
     let delim = space() * (seq(&[':']) | seq(&['=','>']) | seq(&['='])) - space();
-    // delim.collect().map(String::from_iter)
     delim.map(String::from_iter)
 }
 
 fn array_delim<'a>() -> Parser<'a, char, String> {
     let delim = space() * sym(',') - space();
-    // delim.map(String::from_iter)
     delim.map(|c| c.to_string())
 }
 
@@ -352,7 +354,6 @@ fn main() {
     let sort = matches.is_present("sort");
     let input = FileInput::new(&files);
     let reader = BufReader::new(input);
-    // let mut buf = Vec::new();
     for line in reader.lines() {
         match line {
             Ok(s) => {
@@ -362,18 +363,17 @@ fn main() {
                     continue
                 }
                 let buf = s.chars().collect::<Vec<_>>();
-                // let buf = s.as_bytes().iter().map(|x| *x).collect::<Vec<u8>>();
-                // let buf = r#"["a": "c", ["b"]]"#.as_bytes().iter().map(|x| *x).collect::<Vec<u8>>();
-                // let buf = b"{}";
                 let mut r = kras().parse(&buf);
-                println!("{} ===>>> {:?}", s, r);
+                // println!("{} ===>>> {:?}", s, r);
                 if let Ok(mut r) = r {
                     r = r.postprocess(sort);
-                    let mut res = Vec::new();
-                    r.to_doc(indent).render(min_len, &mut res).unwrap();
-                    let pretty = String::from_utf8(res).unwrap();
+                    r.to_doc(indent).render_colored(min_len, StandardStream::stdout(ColorChoice::Auto)).unwrap();
+                    println!("");
+                    // let mut res = Vec::new();
+                    // r.to_doc(indent).render(min_len, &mut res).unwrap();
+                    // let pretty = String::from_utf8(res).unwrap();
                     // println!("{} => {:?} => {}", s, r, pretty)
-                    println!("{} =>\n{}", s, pretty)
+                    // println!("{} =>\n{}", s, pretty)
                 }
                 else {
                     println!("{} =>\n{:?}", s, r.err());
