@@ -345,7 +345,7 @@ fn main() {
             .short("m")
             .long("min_len")
             .help("minimal length of data to be formatted")
-            .default_value("20")
+            .default_value("80")
         )
         .arg(Arg::with_name("input")
              .index(1)

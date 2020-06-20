@@ -1,6 +1,33 @@
 use std::cmp::Ordering;
 use std::collections::{HashMap, BinaryHeap};
 
+/*
+Some explanation on how it works:
+Scan input. Skip strings and escape chars
+
+if the char is one of ( [ { - increment per-char counter and all-counter
+the per-char cnt, all cnt and the char itself make the "signature". Put it to the map:
+(signature) => position of the char
+
+if the char is on of ) ] } - decr per-char and all-char counters. If both counters are 0 -
+we found a valid sequence. Yield it. Otherwise we look for the same signature:
+
+            v -- we a here
+input = [ [ ]
+signatures:
+(0 0 [) => 0
+(1 1 [) => 1
+
+current signature is also (1 1 [) 
+so the current best candidate for valid data starts at position 1
+
+put the (start, end, length) of candidate to priority queue, sorted by length
+
+At the end, the longest candidate is yielded
+
+
+*/
+
 // open pos, close pos, len
 #[derive(Debug)]
 struct CharPosition(usize, usize, usize);
@@ -40,56 +67,6 @@ impl<'a> DetectDataIter<'a> {
     }
 }
 
-/*
-
-input = "[{ [{}] ]"
-stack = [
-// pos char level all_level
-    0 [ 0 0
-    1 { 0 1
-    2 [ 1 2
-    3 { 1 3
-    4 } 1 3
-    5 ] 1 2
-    6 ] 0 1
-
-при каждой закрывающейся скобке можно попытаться найти соотв открывающую.
-Если пришли к 0 0 - выдаем кусок
-Иначе нужно попробовать пропустить символ либо с начала, либо с конца
-
-Гипотеза:
-Валидная строка та, где числа одинаковые
-
-Будем писать засечки, чтобы потом быстро найти наибольшую строку.
-в конце мы должны найти самую длинную строку, путь это будет prio queue.
-Это значит что при закрытии мы должны найти самую дальнюю строку с той же сигнатурой. Может ли быть несколько одинаковых значений внутри строки, кроме откр-закр?
-Пусть нет, тогда имеем отобр:
-(a, b) => pos
-при закрывании берем старый пос (если есть) и пишем в prq (len, start, end)
-В конце, если не нашли 00 - отдаем из верха, гарантируем наилучший результат
-Для проверки: сгенерить мусор вначале, ок, мусор. Проверить, что нашли ок или больше
-
-[[]
- 0 [ 0 0
- 1 [ 1 1
- 2 ] 1 1
-
-[]]
- 0 [ 0 0
- 1 ] 0 0
- 2 ] -1 -1
-
-{[]
- 0 { 0 0
- 1 [ 0 1
- 2 ] 0 1
-
-[}]
- 0 [ 0 0
- 1 ] 0 0
- 2 } -1 -1
-
-*/
 
 fn is_open(c: char) -> bool {
     c == '(' || c == '[' || c == '{'
@@ -113,7 +90,7 @@ fn get_close(c: char) -> char {
         '(' => ')',
         '[' => ']',
         '{' => '}',
-        _ => panic!(format!("wrong close char {:?}", c))
+        _ => panic!(format!("wrong open char {:?}", c))
     }
 }
 
@@ -134,7 +111,7 @@ impl<'a> Iterator for DetectDataIter<'a> {
         for (idx, c) in self.input[self.start..].iter().enumerate() {
             let idx = idx + self.start;
             let c = *c;
-            if c == '\\' {
+            if str_char.is_some() && c == '\\' {
                 escape = true;
                 continue;
             }
@@ -152,17 +129,17 @@ impl<'a> Iterator for DetectDataIter<'a> {
                     str_char = Some(c)
                 }
             }
-            if str_char.is_some() {
-                continue;
-            }
+            // if str_char.is_some() {
+            //     continue;
+            // }
             if is_open(c) {
                 let cnt = cnt_each.entry(c).or_insert(0);
                 let prev = sign_pos.insert((*cnt, all_cnt, c), idx);
-                // assert_eq!(prev, None);
-                if ! prev.is_none() {
-                    // println!("seen {:?} = {:?} at {}", (*cnt, all_cnt, c), prev, idx);
-                    // panic!("")
-                }
+                // if ! prev.is_none() {
+                //     println!("sing = {:?}", sign_pos);
+                //     println!("seen {:?} = {:?} at {}", (*cnt, all_cnt, c), prev, idx);
+                //     panic!("")
+                // }
                 *cnt += 1;
                 all_cnt += 1;
             }
@@ -216,7 +193,7 @@ mod test {
         ];
         for (input, res) in cases {
             let input = input.chars().collect::<Vec<_>>();
-            println!(">> {}", String::from_iter(input.iter()));
+            println!(">> '{}'", String::from_iter(input.iter()));
             let d = DetectDataIter::new(&input).collect::<Vec<_>>();
             println!("{:?}", d);
             assert_eq!(d.len(), res.len());

@@ -1,5 +1,5 @@
 [package]
-name = "kras-rs"
+name = "kras"
 version = "0.1.0"
 authors = ["Nikita Bilous <nikita@bilous.me>"]
 edition = "2018"
@@ -11,6 +11,8 @@ clap = '*'
 fileinput = "*"
 pom = '*'
 termcolor = '*'
+
+[dev-dependencies]
 rand = '*'
 
 [dependencies.pretty]
