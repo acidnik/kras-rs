@@ -11,6 +11,7 @@ clap = '*'
 fileinput = "*"
 pom = '*'
 termcolor = '*'
+rand = '*'
 
 [dependencies.pretty]
 features = ['termcolor']

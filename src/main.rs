@@ -22,6 +22,9 @@ use pretty::*;
 
 use pretty::termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
 
+mod detect;
+use detect::*;
+
 
 #[derive(Debug, Clone)]
 struct OrdF64(f64);
@@ -313,6 +316,9 @@ fn kras<'a>() -> Parser<'a, char, KrasValue> {
     space() * value() - end()
 }
 
+fn process_line(input: &Vec<char>) {
+}
+
 fn main() {
     // TODO control trailing comma: add | remove | keep (!sort)
     let matches = App::new("Kras")
@@ -363,21 +369,33 @@ fn main() {
                     continue
                 }
                 let buf = s.chars().collect::<Vec<_>>();
-                let mut r = kras().parse(&buf);
-                // println!("{} ===>>> {:?}", s, r);
-                if let Ok(mut r) = r {
-                    r = r.postprocess(sort);
-                    r.to_doc(indent).render_colored(min_len, StandardStream::stdout(ColorChoice::Auto)).unwrap();
-                    println!("");
-                    // let mut res = Vec::new();
-                    // r.to_doc(indent).render(min_len, &mut res).unwrap();
-                    // let pretty = String::from_utf8(res).unwrap();
-                    // println!("{} => {:?} => {}", s, r, pretty)
-                    // println!("{} =>\n{}", s, pretty)
+                let mut start = 0;
+                for (pos, data) in DetectDataIter::new(&buf) {
+                    let mut r = kras().parse(data);
+                    // println!("{} ===>>> {:?}", s, r);
+                    if let Ok(mut r) = r {
+                        print!("{}", String::from_iter(buf[start..pos].iter()));
+                        start = pos + data.len();
+                        r = r.postprocess(sort);
+                        r.to_doc(indent).render_colored(min_len, StandardStream::stdout(ColorChoice::Auto)).unwrap();
+                    }
                 }
-                else {
-                    println!("{} =>\n{:?}", s, r.err());
-                }
+                println!("{}", String::from_iter(buf[start..].iter()));
+                // let mut r = kras().parse(&buf);
+                // // println!("{} ===>>> {:?}", s, r);
+                // if let Ok(mut r) = r {
+                //     r = r.postprocess(sort);
+                //     r.to_doc(indent).render_colored(min_len, StandardStream::stdout(ColorChoice::Auto)).unwrap();
+                //     println!("");
+                //     // let mut res = Vec::new();
+                //     // r.to_doc(indent).render(min_len, &mut res).unwrap();
+                //     // let pretty = String::from_utf8(res).unwrap();
+                //     // println!("{} => {:?} => {}", s, r, pretty)
+                //     // println!("{} =>\n{}", s, pretty)
+                // }
+                // else {
+                //     println!("{} =>\n{:?}", s, r.err());
+                // }
             }
             Err(err) => println!("{:?}", err),
         }
