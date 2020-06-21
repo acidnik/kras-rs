@@ -21,3 +21,5 @@ look ma {"a['b']": "[{a['b']}]"} fuckd up data
 at first i was like {wtf, man} but then i {l=o(l=d)}
 'eat shit []' and die // maybe hl strings too? and // # -- comments?
 'yo [\' ' [] "'\"[']" []
+sing = {(-1, 0, '{'): 4, (0, 1, '['): 5, (0, 0, '('): 0}
+sing = {(-1, 0, '{'): 4, (0, 1): 5, (0, 0): 0}

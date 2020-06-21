@@ -318,9 +318,8 @@ fn kras<'a>() -> Parser<'a, char, KrasValue> {
 }
 
 fn main() {
-    // TODO control trailing comma: add | remove | keep (!sort)
     let matches = App::new("Kras")
-        .version("0.0.1")
+        .version("0.1.0")
         .author("Nikita Bilous <nikita@bilous.me>")
         .about("Detect, highlight and pretty print structured data")
         .arg(Arg::with_name("indent")
@@ -334,7 +333,7 @@ fn main() {
             .long("color")
             .default_value("auto")
             .possible_values(&["yes", "no", "auto"])
-            .help("colorize. On by default if output is tty")
+            .help("colorize output")
         )
         .arg(Arg::with_name("sort")
             .short("s")
@@ -373,11 +372,10 @@ fn main() {
     for line in reader.lines() {
         match line {
             Ok(s) => {
-                // FIXME
                 // TODO add flag to skip comments?
-                if s.starts_with("//") {
-                    continue
-                }
+                // if s.starts_with("//") {
+                //     continue
+                // }
                 let buf = s.chars().collect::<Vec<_>>();
                 let mut start = 0;
                 for (pos, data) in DetectDataIter::new(&buf) {
