@@ -17,7 +17,6 @@ use fileinput::FileInput;
 
 extern crate pom;
 use pom::parser::*;
-use pom::char_class::*;
 
 extern crate pretty;
 use pretty::*;
@@ -99,7 +98,7 @@ impl KrasValue {
                     if is_dict {
                         // TODO can it be done without clone?
                         let mut res = Vec::new();
-                        for (i, kv) in items.chunks(2).enumerate() {
+                        for kv in items.chunks(2) {
                             if let [k, v] = kv {
                                 if let KrasValue::ListItem(k) = k {
                                     if let KrasValue::ListItem(v) = v {
@@ -134,7 +133,7 @@ impl KrasValue {
         // {"2": 2, "1": 1} => sort => {"1": 1<no comma> "2": 2,<extra comma>} 
         // => fix => {"1": 1,<add comma> "2": 2<remove comma> } => {"1": 1, "2": 2}
         let len = list.len();
-        for (i, mut item) in list.iter_mut().enumerate() {
+        for (i, item) in list.iter_mut().enumerate() {
             if let KrasValue::Pair((k, d, v, d2)) = item {
                 match (d2.is_some(), i == len-1) {
                     (true, true) => {
@@ -206,7 +205,7 @@ impl KrasValue {
                         RcDoc::nil()
                         .append(v.to_doc(indent))
                         // list delim
-                        .append(d2.clone().map_or(RcDoc::nil(), |d| self.kv_spaces(d.to_string())))
+                        .append(d2.clone().map_or(RcDoc::nil(), |d| self.kv_spaces(d)))
                         .group()
                         .append(Doc::line_())
                     )
@@ -214,7 +213,7 @@ impl KrasValue {
             KrasValue::ListItem((v, d)) => {
                 RcDoc::nil()
                     .append(v.to_doc(indent))
-                    .append(d.clone().map_or(RcDoc::nil(), |d| self.kv_spaces(d.to_string())))
+                    .append(d.clone().map_or(RcDoc::nil(), |d| self.kv_spaces(d)))
             }
             KrasValue::Num(OrdF64(n)) => RcDoc::as_string(n),
             KrasValue::Constructor((id, args)) => {
@@ -241,7 +240,7 @@ fn ident<'a>() -> Parser<'a, char, String> {
 }
 
 fn number<'a>() -> Parser<'a, char, f64> {
-    let integer = one_of("123456789") - one_of("0123456789").repeat(0..) | sym('0');
+    let integer = (one_of("123456789") - one_of("0123456789").repeat(0..)) | sym('0');
     let frac = sym('.') + one_of("0123456789").repeat(1..);
     let exp = one_of("eE") + one_of("+-").opt() + one_of("0123456789").repeat(1..);
     let number = sym('-').opt() + integer + frac.opt() + exp.opt();
@@ -302,7 +301,7 @@ fn constructor<'a>() -> Parser<'a, char, KrasValue> {
 }
 
 fn inner_value<'a>() -> Parser<'a, char, KrasValue> {
-    value() | ident().map(|s| KrasValue::Ident(s))
+    value() | ident().map(KrasValue::Ident)
 }
 
 fn value<'a>() -> Parser<'a, char, KrasValue> {
@@ -316,9 +315,6 @@ fn value<'a>() -> Parser<'a, char, KrasValue> {
 
 fn kras<'a>() -> Parser<'a, char, KrasValue> {
     space() * value() - end()
-}
-
-fn process_line(input: &Vec<char>) {
 }
 
 fn main() {
@@ -359,7 +355,7 @@ fn main() {
         .get_matches();
     let indent = usize::from_str(matches.value_of("indent").unwrap()).unwrap();
     let min_len = if indent == 0 { usize::MAX } else { usize::from_str(matches.value_of("min_len").unwrap()).unwrap() };
-    let files = matches.values_of("input").map(|fs| fs.collect::<Vec<_>>()).unwrap_or(Vec::new());
+    let files = matches.values_of("input").map(|fs| fs.collect::<Vec<_>>()).unwrap_or_default();
     let color_choice = match matches.value_of("color").unwrap() {
         "yes" => ColorChoice::Always,
         "no" => ColorChoice::Never,
@@ -385,7 +381,7 @@ fn main() {
                 let buf = s.chars().collect::<Vec<_>>();
                 let mut start = 0;
                 for (pos, data) in DetectDataIter::new(&buf) {
-                    let mut r = kras().parse(data);
+                    let r = kras().parse(data);
                     // println!("{} ===>>> {:?}", s, r);
                     if let Ok(mut r) = r {
                         print!("{}", String::from_iter(buf[start..pos].iter()));

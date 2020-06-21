@@ -56,14 +56,14 @@ impl PartialOrd for CharPosition {
 }
 
 pub struct DetectDataIter<'a> {
-    input: &'a Vec<char>,
+    input: &'a [char],
     start: usize
 }
 
 impl<'a> DetectDataIter<'a> {
-    pub fn new(input: &'a Vec<char>) -> Self {
+    pub fn new(input: &'a [char]) -> Self {
         DetectDataIter {
-            input: input,
+            input,
             start: 0,
         }
     }
@@ -87,6 +87,7 @@ fn get_open(c: char) -> char {
     }
 }
 
+#[allow(dead_code)]
 fn get_close(c: char) -> char {
     match c {
         '(' => ')',
@@ -140,7 +141,7 @@ impl<'a> Iterator for DetectDataIter<'a> {
             // }
             if is_open(c) {
                 let cnt = cnt_each.entry(c).or_insert(0);
-                let prev = sign_pos.insert((*cnt, all_cnt, c), idx);
+                let _prev = sign_pos.insert((*cnt, all_cnt, c), idx);
                 // if ! prev.is_none() {
                 //     println!("sing = {:?}", sign_pos);
                 //     println!("seen {:?} = {:?} at {}", (*cnt, all_cnt, c), prev, idx);
@@ -173,7 +174,7 @@ impl<'a> Iterator for DetectDataIter<'a> {
         if let Some(CharPosition(start, end, _)) = pq.pop() {
             self.start = end+1;
             // println!("end2 {}", end+1);
-            return Some((start, &self.input[start .. end+1]));
+            Some((start, &self.input[start .. end+1]))
         }
         else {
             None
