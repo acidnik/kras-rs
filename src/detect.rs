@@ -25,6 +25,8 @@ put the (start, end, length) of candidate to priority queue, sorted by length
 
 At the end, the longest candidate is yielded
 
+This is O(nlogn) at worst case
+
 
 */
 
@@ -101,9 +103,13 @@ impl<'a> Iterator for DetectDataIter<'a> {
         if self.start >= self.input.len() {
             return None
         }
+        // balance (open-close) of each bracket
         let mut cnt_each = HashMap::<char, isize>::new();
+        // balance of all open-close brackets
         let mut all_cnt = 0;
+        // signature and position of signature
         let mut sign_pos = HashMap::<(isize, isize, char), usize>::new(); // (cnt, all_cnt, open_char) => pos
+        // queue of best possible matches
         let mut pq = BinaryHeap::<CharPosition>::new();
         let mut escape = false;
         let mut str_char: Option<char> = None;
@@ -177,7 +183,6 @@ impl<'a> Iterator for DetectDataIter<'a> {
 
 #[cfg(test)]
 mod test {
-    // use super::DetectDataIter;
     use super::*;
     use std::iter::FromIterator;
     use rand::prelude::*;

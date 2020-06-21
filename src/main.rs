@@ -7,6 +7,8 @@ use std::str::{self, FromStr};
 use std::cmp::Ordering;
 use std::iter::FromIterator;
 
+extern crate atty;
+
 extern crate clap;
 use clap::{Arg, App};
 
@@ -334,6 +336,8 @@ fn main() {
         .arg(Arg::with_name("color")
             .short("c")
             .long("color")
+            .default_value("auto")
+            .possible_values(&["yes", "no", "auto"])
             .help("colorize. On by default if output is tty")
         )
         .arg(Arg::with_name("sort")
@@ -354,9 +358,19 @@ fn main() {
         )
         .get_matches();
     let indent = usize::from_str(matches.value_of("indent").unwrap()).unwrap();
-    let min_len = usize::from_str(matches.value_of("min_len").unwrap()).unwrap();
+    let min_len = if indent == 0 { usize::MAX } else { usize::from_str(matches.value_of("min_len").unwrap()).unwrap() };
     let files = matches.values_of("input").map(|fs| fs.collect::<Vec<_>>()).unwrap_or(Vec::new());
-    let color = matches.is_present("color");
+    let color_choice = match matches.value_of("color").unwrap() {
+        "yes" => ColorChoice::Always,
+        "no" => ColorChoice::Never,
+        "auto" => if atty::is(atty::Stream::Stdout) {
+                ColorChoice::Auto
+            }
+            else {
+                ColorChoice::Never
+            }
+        _ => unreachable!(),
+    };
     let sort = matches.is_present("sort");
     let input = FileInput::new(&files);
     let reader = BufReader::new(input);
@@ -377,25 +391,10 @@ fn main() {
                         print!("{}", String::from_iter(buf[start..pos].iter()));
                         start = pos + data.len();
                         r = r.postprocess(sort);
-                        r.to_doc(indent).render_colored(min_len, StandardStream::stdout(ColorChoice::Auto)).unwrap();
+                        r.to_doc(indent).render_colored(min_len, StandardStream::stdout(color_choice)).unwrap();
                     }
                 }
                 println!("{}", String::from_iter(buf[start..].iter()));
-                // let mut r = kras().parse(&buf);
-                // // println!("{} ===>>> {:?}", s, r);
-                // if let Ok(mut r) = r {
-                //     r = r.postprocess(sort);
-                //     r.to_doc(indent).render_colored(min_len, StandardStream::stdout(ColorChoice::Auto)).unwrap();
-                //     println!("");
-                //     // let mut res = Vec::new();
-                //     // r.to_doc(indent).render(min_len, &mut res).unwrap();
-                //     // let pretty = String::from_utf8(res).unwrap();
-                //     // println!("{} => {:?} => {}", s, r, pretty)
-                //     // println!("{} =>\n{}", s, pretty)
-                // }
-                // else {
-                //     println!("{} =>\n{:?}", s, r.err());
-                // }
             }
             Err(err) => println!("{:?}", err),
         }
