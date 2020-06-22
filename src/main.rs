@@ -87,9 +87,16 @@ impl KrasValue {
                     for (i, item) in items.iter().enumerate() {
                         if i % 2 == 0 {
                             // each even list item delimeter must be a dict separator
-                            if let KrasValue::ListItem((_, Some(d))) = item {
-                                if ! (d == "=>" || d == ":" || d == "=") {
-                                    is_dict = false;
+                            if let KrasValue::ListItem((_, d)) = item {
+                                is_dict = match d {
+                                    Some(d) => {
+                                        d == "=>" || d == ":" || d == "="
+                                    },
+                                    None => {
+                                        false
+                                    },
+                                };
+                                if !is_dict {
                                     break
                                 }
                             }
@@ -100,6 +107,7 @@ impl KrasValue {
                         let mut res = Vec::new();
                         for kv in items.chunks(2) {
                             if let [k, v] = kv {
+                                println!("k = {:?}  v = {:?}", k, v);
                                 if let KrasValue::ListItem(k) = k {
                                     if let KrasValue::ListItem(v) = v {
                                         res.push(KrasValue::Pair(( 
@@ -181,8 +189,9 @@ impl KrasValue {
                         .append(RcDoc::line_())
                         .nest(nest)
                         .append(RcDoc::intersperse(it.iter().map(|x| x.to_doc(indent)), RcDoc::softline_())
-                        .nest(nest)
-                        .append(Doc::line_()))
+                            .nest(nest)
+                            // .append(Doc::line_())
+                        )
                         .group()
                     )
                     .append(RcDoc::nil()
@@ -207,8 +216,8 @@ impl KrasValue {
                         // list delim
                         .append(d2.clone().map_or(RcDoc::nil(), |d| self.kv_spaces(d)))
                         .group()
-                        .append(Doc::line_())
                     )
+                    .append(Doc::line_())
             },
             KrasValue::ListItem((v, d)) => {
                 RcDoc::nil()
