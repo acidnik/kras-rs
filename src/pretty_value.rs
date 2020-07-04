@@ -156,6 +156,7 @@ impl KrasValue {
             KrasValue::Str((q, s)) => RcDoc::as_string(q.to_string() + s + &q.to_string())
                 .annotate(ColorSpec::new().set_fg(Some(Color::Red)).clone()),
             KrasValue::Ident(s) => RcDoc::as_string(s)
+            // KrasValue::Ident(s) => RcDoc::as_string(format!("<{}>",s ))
                 .annotate(ColorSpec::new().set_fg(Some(Color::Blue)).clone()),
             KrasValue::List((op, it, cl)) => {
                 RcDoc::text(op)

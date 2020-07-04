@@ -9,12 +9,20 @@ fn space<'a>() -> Parser<'a, char, ()> {
     one_of(" \t\r\n").repeat(0..).discard()
 }
 
-fn ident<'a>() -> Parser<'a, char, String> {
+fn ident<'a>() -> Parser<'a, char, String> { 
     let first = is_a(|c: char| c.is_alphabetic());
-    let dot = sym('.');
-    let rest = is_a(|c: char| c.is_alphanumeric()) | dot;
-    let ident = first + rest.repeat(0..) + space();
-    ident.collect().map(String::from_iter)
+
+    fn alnum<'a>() -> Parser<'a, char, String> {
+        let alnum = is_a(|c: char| c.is_alphanumeric());
+        alnum.collect().map(String::from_iter)
+    }
+    let dot = sym('.') | sym(':');
+
+    // [a-z] [a-z0-9]* ([:.]+[a-z0-9]+)*
+    let ident = first + alnum().repeat(0..) + (dot.repeat(1..) + alnum().repeat(1..)).repeat(0..) - space();
+    
+    // wtf: -space() not working here (got consumed), so trim_end
+    ident.collect().map(String::from_iter).map(|s| s.trim_end().to_string())
 }
 
 fn number<'a>() -> Parser<'a, char, f64> {
