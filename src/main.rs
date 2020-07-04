@@ -5,6 +5,13 @@ use std::io::BufReader;
 use std::io::BufRead;
 use std::iter::FromIterator;
 use std::str::{self, FromStr};
+use std::io::Write;
+
+use std::env;
+extern crate chrono;
+#[macro_use]
+extern crate log;
+extern crate env_logger;
 
 extern crate atty;
 
@@ -29,6 +36,9 @@ use pretty_value::*;
 
 mod parse;
 use parse::kras;
+
+mod stopwatch;
+use stopwatch::Stopwatch;
 
 
 fn main() {
@@ -60,12 +70,17 @@ fn main() {
             .help("minimal length of data to be formatted")
             .default_value("80")
         )
+        .arg(Arg::with_name("debug")
+            .long("debug")
+            .help("debug mode")
+        )
         .arg(Arg::with_name("input")
              .index(1)
              .multiple(true)
              .help("Input files or stdin")
         )
         .get_matches();
+    init_logger(if matches.is_present("debug") {2} else {0} );
     let indent = usize::from_str(matches.value_of("indent").unwrap()).unwrap();
     let min_len = if indent == 0 { usize::MAX } else { usize::from_str(matches.value_of("min_len").unwrap()).unwrap() };
     let files = matches.values_of("input").map(|fs| fs.collect::<Vec<_>>()).unwrap_or_default();
@@ -94,16 +109,21 @@ fn main() {
                 let mut start = 0;
                 for (pos, data) in DetectDataIter::new(&buf) {
                     // println!("detect //////// {} //////////", String::from_iter(data));
+                    let mut stopwatch = Stopwatch::new("parse", 0);
                     let r = kras().parse(data);
+                    stopwatch.stop();
                     if let Ok(mut r) = r {
                         print!("{}", String::from_iter(buf[start..pos].iter()));
                         start = pos + data.len();
                         r = r.postprocess(sort);
                         // println!("{} ===>>> {:?}", s, r);
-                        r.to_doc(indent).render_colored(min_len, StandardStream::stdout(color_choice)).unwrap();
+                        let mut stopwatch = Stopwatch::new("pretty", 0);
+                        let doc = r.to_doc(indent);
+                        stopwatch.stop();
+                        doc.render_colored(min_len, StandardStream::stdout(color_choice)).unwrap();
                     }
                     else {
-                        // println!("err {:?}", r);
+                        debug!("parse error {:?}", r);
                     }
                 }
                 println!("{}", String::from_iter(buf[start..].iter()));
@@ -111,4 +131,32 @@ fn main() {
             Err(err) => println!("{:?}", err),
         }
     }
+}
+
+fn init_logger(level: usize) {
+    let format = |buf: &mut env_logger::fmt::Formatter, record: &log::Record| {
+        writeln!(buf,
+            "[{date}] [{level}] {module} | {file}:{line} | {message}",
+            date = chrono::Local::now().format("%H:%M:%S%.3f").to_string(),
+            level = record.level(),
+            module = record.module_path().unwrap_or_default(),
+            file = record.file().unwrap_or_default(),
+            line = record.line().unwrap_or_default(),
+            message = record.args()
+        )
+    };
+    let mut builder = env_logger::Builder::new();
+    builder.format(format).filter(None, log::LevelFilter::Info);
+
+    if level == 0 && env::var("RUST_LOG").is_ok() {
+        builder.parse_filters(&env::var("RUST_LOG").unwrap());
+    }
+    else if level == 1 {
+        builder.parse_filters("debug");
+    }
+    else if level >= 2 {
+        builder.parse_filters("trace");
+    }
+
+    builder.init()
 }

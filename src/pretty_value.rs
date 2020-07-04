@@ -162,25 +162,19 @@ impl KrasValue {
                 RcDoc::text(op)
                     .annotate(ColorSpec::new().set_bold(true).clone())
                     .append(RcDoc::nil()
-                        // .append(RcDoc::text("%"))
                         .append(RcDoc::line_())
                         .nest(nest)
-                        // .append(RcDoc::intersperse(it.iter().map(|x| x.to_doc(indent)), RcDoc::softline_())
-                        //     .nest(nest)
-                        //     .append(Doc::line_())
-                        // )
-                        .append(RcDoc::intersperse(it.iter().map(|x| x.to_doc(indent)), RcDoc::nil())
+                        .append(RcDoc::intersperse(it.iter().map(|x| x.to_doc(indent)), RcDoc::line_())
                             .nest(nest)
-                            // .group()
                             .append(Doc::line_())
                         )
-                        // .group()
+                        .group()
                     )
                     .append(RcDoc::nil()
                         .append(cl)
                         .annotate(ColorSpec::new().set_bold(true).clone())
                     )
-            }//.group(),
+            }
             KrasValue::Pair((k, d, v, d2)) => {
                 RcDoc::nil()
                     .append(
@@ -189,25 +183,23 @@ impl KrasValue {
                         .append(k.to_doc(indent))//.append(Doc::line_())
                         // kv delim
                         .append(self.kv_spaces(d.to_string()))
-                        // .group()
+                        .group()
                     )
+                    .append(RcDoc::softline_())
+                    .nest(nest)
                     .append(
                         // value
                         RcDoc::nil()
                         .append(v.to_doc(indent))
                         // list delim
                         .append(d2.clone().map_or(RcDoc::nil(), |d| self.kv_spaces(d)))
-                        // .group()
+                        .group()
                     )
-                    // .group()
-                    // .append(RcDoc::text("⏎"))
-                    // .append(RcDoc::line_())
             }.group(),
             KrasValue::ListItem((v, d)) => {
                 RcDoc::nil()
                     .append(v.to_doc(indent))
                     .append(d.clone().map_or(RcDoc::nil(), |d| self.kv_spaces(d)))
-                    // .append(RcDoc::softline_())
                     .append(RcDoc::line_())
             }
             KrasValue::Num(OrdF64(n)) => RcDoc::as_string(n),
@@ -216,7 +208,7 @@ impl KrasValue {
                     .append(id.to_doc(indent))
                     .append(args.to_doc(indent))
                     .group()
-            }//.group()
+            }
         }.group()
     }
 }
