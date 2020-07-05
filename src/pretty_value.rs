@@ -200,7 +200,6 @@ impl KrasValue {
                 RcDoc::nil()
                     .append(v.to_doc(indent))
                     .append(d.clone().map_or(RcDoc::nil(), |d| self.kv_spaces(d)))
-                    .append(RcDoc::line_())
             }
             KrasValue::Num(OrdF64(n)) => RcDoc::as_string(n),
             KrasValue::Constructor((id, args)) => {
