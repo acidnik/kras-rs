@@ -4,7 +4,7 @@
 use std::io::BufReader;
 use std::io::BufRead;
 use std::iter::FromIterator;
-use std::str::{self, FromStr};
+use std::str::FromStr;
 use std::io::Write;
 
 use std::env;
@@ -24,15 +24,13 @@ use fileinput::FileInput;
 extern crate pom;
 
 extern crate pretty;
-use pretty::*;
 
-use pretty::termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
+use pretty::termcolor::{ColorChoice, StandardStream};
 
 mod detect;
 use detect::*;
 
 mod pretty_value;
-use pretty_value::*;
 
 mod parse;
 use parse::kras;

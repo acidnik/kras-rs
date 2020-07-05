@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use pretty::*;
-use pretty::termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
+use pretty::termcolor::{Color, ColorSpec};
 
 #[derive(Debug, Clone)]
 pub struct OrdF64(pub f64);

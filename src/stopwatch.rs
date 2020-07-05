@@ -11,7 +11,7 @@ impl Stopwatch {
     pub fn new<S: Into<String>>(name: S, treshold_ms: usize) -> Self {
         let name = name.into();
         Stopwatch {
-            name:     name,
+            name,
             start:    time::Instant::now(),
             treshold: treshold_ms * 1_000_000,
             stopped:  false,

@@ -1,5 +1,5 @@
 use std::iter::FromIterator;
-use std::str::{self, FromStr};
+use std::str::FromStr;
 
 use pom::parser::*;
 
