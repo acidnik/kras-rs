@@ -1,6 +1,8 @@
 use std::cmp::Ordering;
 use std::collections::{HashMap, BinaryHeap};
 
+use crate::stopwatch::Stopwatch;
+
 /*
 Some explanation on how it works:
 Scan input. Skip strings and escape chars
@@ -104,6 +106,7 @@ impl<'a> Iterator for DetectDataIter<'a> {
         if self.start >= self.input.len() {
             return None
         }
+        let _stopwatch = Stopwatch::new("detect", 0);
         // balance (open-close) of each bracket
         let mut cnt_each = HashMap::<char, isize>::new();
         // balance of all open-close brackets

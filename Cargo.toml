@@ -12,6 +12,9 @@ fileinput = "*"
 pom = '*'
 termcolor = '*'
 atty = '*'
+log = '*'
+env_logger = '*'
+chrono = '*'
 
 [dev-dependencies]
 rand = '*'
