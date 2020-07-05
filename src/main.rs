@@ -80,7 +80,7 @@ fn main() {
         .get_matches();
     init_logger(if matches.is_present("debug") {2} else {0} );
     let indent = usize::from_str(matches.value_of("indent").unwrap()).unwrap();
-    let min_len = if indent == 0 { usize::MAX } else { usize::from_str(matches.value_of("min_len").unwrap()).unwrap() };
+    let min_len = if indent == 0 { std::usize::MAX } else { usize::from_str(matches.value_of("min_len").unwrap()).unwrap() };
     let files = matches.values_of("input").map(|fs| fs.collect::<Vec<_>>()).unwrap_or_default();
     let color_choice = match matches.value_of("color").unwrap() {
         "yes" => ColorChoice::Always,
