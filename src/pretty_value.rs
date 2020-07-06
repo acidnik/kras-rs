@@ -199,7 +199,8 @@ impl KrasValue {
                     .append(v.to_doc(indent, false))
                     .append(d.clone().map_or(RcDoc::nil(), |d| self.kv_spaces(d)))
             }
-            KrasValue::Num(OrdF64(n)) => RcDoc::as_string(n),
+            KrasValue::Num(OrdF64(n)) => RcDoc::as_string(n)
+                .annotate(ColorSpec::new().set_fg(Some(Color::Green)).clone()),
             KrasValue::Constructor((id, args)) => {
                 RcDoc::nil()
                     .append(id.to_doc(indent, false))
