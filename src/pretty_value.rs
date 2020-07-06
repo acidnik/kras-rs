@@ -72,9 +72,6 @@ impl KrasValue {
                                     false
                                 },
                             };
-                            if !is_dict {
-                                break
-                            }
                         }
                     }
                 }
