@@ -50,6 +50,7 @@ fn main() {
              .help("indentation. 0 to disable (but still color output)")
              .default_value("2")
         )
+        // TODO add shortcut for -c yes (-C)
         .arg(Arg::with_name("color")
             .short("c")
             .long("color")
@@ -106,17 +107,22 @@ fn main() {
                 let buf = s.chars().collect::<Vec<_>>();
                 let mut start = 0;
                 for (pos, data) in DetectDataIter::new(&buf) {
-                    // println!("detect //////// {} //////////", String::from_iter(data));
+                    debug!("DETECT: {}", String::from_iter(data));
                     let mut stopwatch = Stopwatch::new("parse", 0);
                     let r = kras().parse(data);
                     stopwatch.stop();
                     if let Ok(mut r) = r {
+                        debug!("PARSED: {:?}", r);
                         print!("{}", String::from_iter(buf[start..pos].iter()));
                         start = pos + data.len();
-                        r = r.postprocess(sort);
+                        // r = r.postprocess(sort);
+                        let mut stopwatch = Stopwatch::new("postprocess", 0);
+                        r.postprocess(sort);
+                        stopwatch.stop();
+                        debug!("POSTPROC: {:?}", r);
                         // println!("{} ===>>> {:?}", s, r);
                         let mut stopwatch = Stopwatch::new("pretty", 0);
-                        let doc = r.to_doc(indent);
+                        let doc = r.to_doc(indent, false);
                         stopwatch.stop();
                         doc.render_colored(min_len, StandardStream::stdout(color_choice)).unwrap();
                     }

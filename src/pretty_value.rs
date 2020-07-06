@@ -51,66 +51,67 @@ pub enum KrasValue {
 }
 
 impl KrasValue {
-    pub fn postprocess(mut self, sort: bool) -> Self {
+    pub fn postprocess(&mut self, sort: bool) {
         // convert lists to dicts, sort
         match self {
-            KrasValue::List((ref o, ref items, ref c)) => {
+            KrasValue::List((ref o, ref mut items, ref c)) => {
                 // if list looks like python dict / js object / perl hash / etc: convert ListItems
                 // to Pairs
                 // {key1: val1, key2: val2} => [ (key1, :), (val1, ,), (key2, :), (val2, ())] => [ (key1, :, val1, ,), (key2, :, val2, ()) ]
-                if items.len() % 2 == 0 {
-                    let mut is_dict = true;
-                    for (i, item) in items.iter().enumerate() {
-                        if i % 2 == 0 {
-                            // each even list item delimeter must be a dict separator
-                            if let KrasValue::ListItem((_, d)) = item {
-                                is_dict = match d {
-                                    Some(d) => {
-                                        d == "=>" || d == ":" || d == "="
-                                    },
-                                    None => {
-                                        false
-                                    },
-                                };
-                                if !is_dict {
-                                    break
-                                }
+                let mut is_dict = true;
+                for (i, item) in items.iter_mut().enumerate() {
+                    item.postprocess(sort);
+                    if i % 2 == 0 {
+                        // each even list item delimeter must be a dict separator
+                        if let KrasValue::ListItem((_, d)) = item {
+                            is_dict = match d {
+                                Some(d) => {
+                                    d == "=>" || d == ":" || d == "="
+                                },
+                                None => {
+                                    false
+                                },
+                            };
+                            if !is_dict {
+                                break
                             }
                         }
-                    }
-                    if is_dict {
-                        // TODO can it be done without clone?
-                        let mut res = Vec::new();
-                        for kv in items.chunks(2) {
-                            if let [k, v] = kv {
-                                if let KrasValue::ListItem(k) = k {
-                                    if let KrasValue::ListItem(v) = v {
-                                        res.push(KrasValue::Pair(( 
-                                            Box::new(k.0.clone().postprocess(sort)),
-                                            k.1.clone().unwrap(),
-                                            Box::new(v.0.clone().postprocess(sort)),
-                                            v.1.clone()
-                                        )))
-                                    }
-                                }
-                            }
-                        }
-                        if sort {
-                            res.sort();
-                            self.fix_comma(&mut res);
-                        }
-                        self = KrasValue::List((o.to_string(), res, c.to_string()));
                     }
                 }
+                if is_dict {
+                    // TODO can it be done without clone?
+                    let mut res = Vec::new();
+                    for kv in items.chunks_mut(2) {
+                        if let [k, v] = kv {
+                            if let KrasValue::ListItem(ref mut k) = k {
+                                if let KrasValue::ListItem(ref mut v) = v {
+                                    res.push(KrasValue::Pair(( 
+                                        k.0.clone(),
+                                        k.1.clone().unwrap(),
+                                        v.0.clone(),
+                                        v.1.clone()
+                                    )))
+                                }
+                            }
+                        }
+                    }
+                    if sort {
+                        res.sort();
+                        self.fix_comma(&mut res);
+                    }
+                    *self = KrasValue::List((o.to_string(), res, c.to_string()));
+                }
             },
-            KrasValue::Constructor(kv) => {
-                let (ident, mut args) = kv;
-                args = Box::new(args.postprocess(sort));
-                self = KrasValue::Constructor((ident, args))
+            KrasValue::Constructor(ref mut kv) => {
+                let (ref mut ident, ref mut args) = kv;
+                args.postprocess(sort);
+                *self = KrasValue::Constructor((ident.clone(), args.clone()))
+            }
+            KrasValue::ListItem((ref mut val, _)) => {
+                val.postprocess(sort)
             }
             _ => {},
         }
-        self
     }
     fn fix_comma(&self, list: &mut Vec<KrasValue>) {
         // {"2": 2, "1": 1} => sort => {"1": 1<no comma> "2": 2,<extra comma>} 
@@ -150,11 +151,11 @@ impl KrasValue {
         }
     }
 
-    pub fn to_doc(&self, indent: usize) -> RcDoc<ColorSpec> {
+    pub fn to_doc(&self, indent: usize, is_key: bool) -> RcDoc<ColorSpec> {
         let nest = indent as isize; // why tf _i_size?
         match self {
             KrasValue::Str((q, s)) => RcDoc::as_string(q.to_string() + s + &q.to_string())
-                .annotate(ColorSpec::new().set_fg(Some(Color::Red)).clone()),
+                .annotate(ColorSpec::new().set_fg(Some(Color::Red)).set_bold(is_key).clone()),
             KrasValue::Ident(s) => RcDoc::as_string(s)
             // KrasValue::Ident(s) => RcDoc::as_string(format!("<{}>",s ))
                 .annotate(ColorSpec::new().set_fg(Some(Color::Blue)).clone()),
@@ -164,7 +165,7 @@ impl KrasValue {
                     .append(RcDoc::nil()
                         .append(RcDoc::line_())
                         .nest(nest)
-                        .append(RcDoc::intersperse(it.iter().map(|x| x.to_doc(indent)), RcDoc::line_())
+                        .append(RcDoc::intersperse(it.iter().map(|x| x.to_doc(indent, false)), RcDoc::line_())
                             .nest(nest)
                             .append(Doc::line_())
                         )
@@ -180,7 +181,7 @@ impl KrasValue {
                     .append(
                         RcDoc::nil()
                         // key
-                        .append(k.to_doc(indent))//.append(Doc::line_())
+                        .append(k.to_doc(indent, true))
                         // kv delim
                         .append(self.kv_spaces(d.to_string()))
                         .group()
@@ -190,7 +191,7 @@ impl KrasValue {
                     .append(
                         // value
                         RcDoc::nil()
-                        .append(v.to_doc(indent))
+                        .append(v.to_doc(indent, false))
                         // list delim
                         .append(d2.clone().map_or(RcDoc::nil(), |d| self.kv_spaces(d)))
                         .group()
@@ -198,14 +199,14 @@ impl KrasValue {
             }.group(),
             KrasValue::ListItem((v, d)) => {
                 RcDoc::nil()
-                    .append(v.to_doc(indent))
+                    .append(v.to_doc(indent, false))
                     .append(d.clone().map_or(RcDoc::nil(), |d| self.kv_spaces(d)))
             }
             KrasValue::Num(OrdF64(n)) => RcDoc::as_string(n),
             KrasValue::Constructor((id, args)) => {
                 RcDoc::nil()
-                    .append(id.to_doc(indent))
-                    .append(args.to_doc(indent))
+                    .append(id.to_doc(indent, false))
+                    .append(args.to_doc(indent, false))
                     .group()
             }
         }.group()
