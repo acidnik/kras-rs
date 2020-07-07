@@ -10,10 +10,10 @@ fn space<'a>() -> Parser<'a, char, ()> {
 }
 
 fn ident<'a>() -> Parser<'a, char, String> { 
-    let first = is_a(|c: char| c.is_alphabetic());
+    let first = is_a(|c: char| c.is_alphabetic()) | sym('_');
 
     fn alnum<'a>() -> Parser<'a, char, String> {
-        let alnum = is_a(|c: char| c.is_alphanumeric());
+        let alnum = is_a(|c: char| c.is_alphanumeric()) | sym('_');
         alnum.collect().map(String::from_iter)
     }
     let dot = sym('.') | sym(':') | sym('-');
