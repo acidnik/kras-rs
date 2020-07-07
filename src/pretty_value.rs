@@ -59,11 +59,18 @@ impl KrasValue {
                 // to Pairs
                 // {key1: val1, key2: val2} => [ (key1, :), (val1, ,), (key2, :), (val2, ())] => [ (key1, :, val1, ,), (key2, :, val2, ()) ]
                 let mut is_dict = true;
+                let len = items.len();
                 for (i, item) in items.iter_mut().enumerate() {
                     item.postprocess(sort);
-                    if i % 2 == 0 {
-                        // each even list item delimeter must be a dict separator
-                        if let KrasValue::ListItem((_, d)) = item {
+                    if let KrasValue::ListItem((_, ref mut d)) = item {
+                        // fix lisp-style arrays (add space)
+                        // (foo bar) => parse => (foo<none> bar<none>) => fix 
+                        // => (foo<space> bar<none>)
+                        if i < len-1 && d.is_none() {
+                            *d = Some(" ".to_string())
+                        }
+                        if i % 2 == 0 {
+                            // each even list item delimeter must be a dict separator
                             is_dict = match d {
                                 Some(d) => {
                                     d == "=>" || d == ":" || d == "="
@@ -113,6 +120,7 @@ impl KrasValue {
     fn fix_comma(&self, list: &mut Vec<KrasValue>) {
         // {"2": 2, "1": 1} => sort => {"1": 1<no comma> "2": 2,<extra comma>} 
         // => fix => {"1": 1,<add comma> "2": 2<remove comma> } => {"1": 1, "2": 2}
+        
         let len = list.len();
         for (i, item) in list.iter_mut().enumerate() {
             if let KrasValue::Pair((k, d, v, d2)) = item {
@@ -144,6 +152,7 @@ impl KrasValue {
             ":"  => RcDoc::text(d).append(RcDoc::space()),
             "="  => RcDoc::text(d),
             ","  => RcDoc::text(d).append(RcDoc::space()),
+            " "  => RcDoc::text(d),
             _ => panic!(format!("unexpected kv delim ['{}']", d)),
         }
     }
@@ -154,8 +163,7 @@ impl KrasValue {
             KrasValue::Str((q, s)) => RcDoc::as_string(q.to_string() + s + &q.to_string())
                 .annotate(ColorSpec::new().set_fg(Some(Color::Red)).set_bold(is_key).clone()),
             KrasValue::Ident(s) => RcDoc::as_string(s)
-            // KrasValue::Ident(s) => RcDoc::as_string(format!("<{}>",s ))
-                .annotate(ColorSpec::new().set_fg(Some(Color::Blue)).clone()),
+                .annotate(ColorSpec::new().set_fg(Some(Color::Blue)).set_bold(is_key).clone()),
             KrasValue::List((op, it, cl)) => {
                 RcDoc::text(op)
                     .annotate(ColorSpec::new().set_bold(true).clone())

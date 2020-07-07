@@ -47,10 +47,9 @@ fn main() {
         .arg(Arg::with_name("indent")
              .short("i")
              .long("indent")
-             .help("indentation. 0 to disable (but still color output)")
+             .help("indentation. 0 to disable (colorization is stil performed)")
              .default_value("2")
         )
-        // TODO add shortcut for -c yes (-C)
         .arg(Arg::with_name("color")
             .short("c")
             .long("color")
@@ -58,15 +57,20 @@ fn main() {
             .possible_values(&["yes", "no", "auto"])
             .help("colorize output")
         )
+        .arg(Arg::with_name("force_color")
+             .short("C")
+             .long("force-color")
+             .help("alias for --color yes")
+         )
         .arg(Arg::with_name("sort")
             .short("s")
             .long("sort")
             .help("sort keys")
         )
-        .arg(Arg::with_name("min_len")
-            .short("m")
-            .long("min_len")
-            .help("minimal length of data to be formatted")
+        .arg(Arg::with_name("width")
+            .short("w")
+            .long("width")
+            .help("maximum width of output")
             .default_value("80")
         )
         .arg(Arg::with_name("debug")
@@ -81,18 +85,23 @@ fn main() {
         .get_matches();
     init_logger(if matches.is_present("debug") {2} else {0} );
     let indent = usize::from_str(matches.value_of("indent").unwrap()).unwrap();
-    let min_len = if indent == 0 { std::usize::MAX } else { usize::from_str(matches.value_of("min_len").unwrap()).unwrap() };
+    let min_len = if indent == 0 { std::usize::MAX } else { usize::from_str(matches.value_of("width").unwrap()).unwrap() };
     let files = matches.values_of("input").map(|fs| fs.collect::<Vec<_>>()).unwrap_or_default();
-    let color_choice = match matches.value_of("color").unwrap() {
-        "yes" => ColorChoice::Always,
-        "no" => ColorChoice::Never,
-        "auto" => if atty::is(atty::Stream::Stdout) {
-                ColorChoice::Auto
-            }
-            else {
-                ColorChoice::Never
-            }
-        _ => unreachable!(),
+    let color_choice =
+        if matches.is_present("force_color") 
+            { ColorChoice::Always }
+        else { 
+            match matches.value_of("color").unwrap() {
+            "yes" => ColorChoice::Always,
+            "no" => ColorChoice::Never,
+            "auto" => if atty::is(atty::Stream::Stdout) {
+                    ColorChoice::Auto
+                }
+                else {
+                    ColorChoice::Never
+                }
+            _ => unreachable!(),
+        }
     };
     let sort = matches.is_present("sort");
     let input = FileInput::new(&files);
@@ -115,12 +124,10 @@ fn main() {
                         debug!("PARSED: {:?}", r);
                         print!("{}", String::from_iter(buf[start..pos].iter()));
                         start = pos + data.len();
-                        // r = r.postprocess(sort);
                         let mut stopwatch = Stopwatch::new("postprocess", 0);
                         r.postprocess(sort);
                         stopwatch.stop();
                         debug!("POSTPROC: {:?}", r);
-                        // println!("{} ===>>> {:?}", s, r);
                         let mut stopwatch = Stopwatch::new("pretty", 0);
                         let doc = r.to_doc(indent, false);
                         stopwatch.stop();
@@ -132,7 +139,10 @@ fn main() {
                 }
                 println!("{}", String::from_iter(buf[start..].iter()));
             }
-            Err(err) => println!("{:?}", err),
+            Err(err) => {
+                error!("{:?}", err);
+                break
+            }
         }
     }
 }
