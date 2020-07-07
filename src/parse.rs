@@ -16,7 +16,7 @@ fn ident<'a>() -> Parser<'a, char, String> {
         let alnum = is_a(|c: char| c.is_alphanumeric());
         alnum.collect().map(String::from_iter)
     }
-    let dot = sym('.') | sym(':');
+    let dot = sym('.') | sym(':') | sym('-');
 
     // [a-z] [a-z0-9]* ([:.]+[a-z0-9]+)*
     let ident = first + alnum().repeat(0..) + (dot.repeat(1..) + alnum().repeat(1..)).repeat(0..) - space();
