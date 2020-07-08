@@ -15,17 +15,17 @@ description = "Detect, highlight and pretty print structured data"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-clap = '*'
-fileinput = "*"
-pom = '*'
-termcolor = '*'
-atty = '*'
-log = '*'
-env_logger = '*'
-chrono = '*'
+clap = '2.33.0'
+fileinput = "0.3.0"
+pom = '3.1.0'
+termcolor = '1.1.0'
+atty = '0.2.14'
+log = '0.4.8'
+env_logger = '0.7.1'
+chrono = '0.4.11'
 
 [dev-dependencies]
-rand = '*'
+rand = '0.7.3'
 
 [dependencies.pretty]
 features = ['termcolor']
