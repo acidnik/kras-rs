@@ -3,7 +3,4 @@
 Cargo.lock
 **/__pycache__
 **/venv
-test/home_test
-test/common
-test/backup
-test/tune/templates/processed
+test/*
