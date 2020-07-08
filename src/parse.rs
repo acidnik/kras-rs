@@ -10,10 +10,10 @@ fn space<'a>() -> Parser<'a, char, ()> {
 }
 
 fn ident<'a>() -> Parser<'a, char, String> { 
-    let first = is_a(|c: char| c.is_alphabetic()) | sym('_');
+    let first = is_a(|c: char| c.is_alphabetic()) | one_of("_%$@\\");
 
     fn alnum<'a>() -> Parser<'a, char, String> {
-        let alnum = is_a(|c: char| c.is_alphanumeric()) | sym('_');
+        let alnum = is_a(|c: char| c.is_alphanumeric()) | one_of("_%$@\\");
         alnum.collect().map(String::from_iter)
     }
     let dot = sym('.') | sym(':') | sym('-');
@@ -25,12 +25,13 @@ fn ident<'a>() -> Parser<'a, char, String> {
     ident.collect().map(String::from_iter).map(|s| s.trim_end().to_string())
 }
 
-fn number<'a>() -> Parser<'a, char, f64> {
+fn number<'a>() -> Parser<'a, char, (f64, String)> {
     let integer = (one_of("123456789") - one_of("0123456789").repeat(0..)) | sym('0');
     let frac = sym('.') + one_of("0123456789").repeat(1..);
     let exp = one_of("eE") + one_of("+-").opt() + one_of("0123456789").repeat(1..);
     let number = sym('-').opt() + integer + frac.opt() + exp.opt();
-    number.collect().map(String::from_iter).convert(|s| f64::from_str(&s))
+    let repr = number.collect().map(String::from_iter);
+    repr.convert(|s| f64::from_str(&s).and_then(|n| Ok((n, s))) )
 }
 
 fn qqstring<'a>() -> Parser<'a, char, (char, String)> {
@@ -93,7 +94,7 @@ fn inner_value<'a>() -> Parser<'a, char, KrasValue> {
 fn value<'a>() -> Parser<'a, char, KrasValue> {
     (
         string()
-        | number().map(|n| KrasValue::Num(OrdF64(n)))
+        | number().map(|(n, r)| KrasValue::Num(OrdF64(n, r)))
         | constructor()
         | array().map(|(s, arr, c)| KrasValue::List((s, arr, c)))
     ) - space()

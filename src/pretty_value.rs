@@ -4,7 +4,7 @@ use pretty::*;
 use pretty::termcolor::{Color, ColorSpec};
 
 #[derive(Debug, Clone)]
-pub struct OrdF64(pub f64);
+pub struct OrdF64(pub f64, pub String);
 
 impl PartialEq for OrdF64 {
     fn eq(&self, other: &Self) -> bool {
@@ -207,12 +207,12 @@ impl KrasValue {
                     .append(v.to_doc(indent, false))
                     .append(d.clone().map_or(RcDoc::nil(), |d| self.kv_spaces(d)))
             }
-            KrasValue::Num(OrdF64(n)) => RcDoc::as_string(n)
-                .annotate(ColorSpec::new().set_fg(Some(Color::Green)).clone()),
+            KrasValue::Num(OrdF64(_n, r)) => RcDoc::as_string(r)
+                .annotate(ColorSpec::new().set_fg(Some(Color::Green)).set_bold(is_key).clone()),
             KrasValue::Constructor((id, args)) => {
                 RcDoc::nil()
-                    .append(id.to_doc(indent, false))
-                    .append(args.to_doc(indent, false))
+                    .append(id.to_doc(indent, is_key))
+                    .append(args.to_doc(indent, is_key))
                     .group()
             }
         }.group()
