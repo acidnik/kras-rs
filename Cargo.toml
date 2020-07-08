@@ -4,6 +4,14 @@ version = "0.1.0"
 authors = ["Nikita Bilous <nikita@bilous.me>"]
 edition = "2018"
 
+license = "MIT"
+keywords = ["pretty", "log", "parse"]
+categories = ["command-line-utilities"]
+homepage = "https://github.com/acidnik/kras-rs"
+repository = "https://github.com/acidnik/kras-rs"
+readme = "README.md"
+description = "Detect, highlight and pretty print structured data"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
