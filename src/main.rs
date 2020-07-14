@@ -1,5 +1,5 @@
 // disable some warnings for debug build
-#![cfg_attr(debug_assertions, allow(dead_code, unused_imports, unused_mut, unused_variables))]
+#![cfg_attr(debug_assertions, allow(dead_code, unused_imports, unused_mut, unused_variables, unreachable_code))]
 
 use std::io::BufReader;
 use std::io::BufRead;

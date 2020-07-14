@@ -34,20 +34,26 @@ fn number<'a>() -> Parser<'a, char, (f64, String)> {
     repr.convert(|s| f64::from_str(&s).and_then(|n| Ok((n, s))) )
 }
 
-fn qqstring<'a>() -> Parser<'a, char, (char, String)> {
-    let special_char = sym('\\') | sym('/') | sym('"')
+fn json_unicode<'a>() -> Parser<'a, char, char> {
+    let hex = one_of("0123456789abcdefABCDEF");
+    let ch = sym('u') * hex.repeat(1..).map(String::from_iter);
+    ch.convert(|s| u32::from_str_radix(&s, 16)).convert(|n| std::char::from_u32(n).ok_or("not a valid unicode"))
+}
+
+fn special_char<'a>() -> Parser<'a, char, char> {
+    json_unicode() | sym('\\') | sym('/') | sym('"')
         | sym('b').map(|_|'\x08') | sym('f').map(|_|'\x0C')
-        | sym('n').map(|_|'\n') | sym('r').map(|_|'\r') | sym('t').map(|_|'\t');
-    let escape_sequence = sym('\\') * special_char;
+        | sym('n').map(|_|'\n') | sym('r').map(|_|'\r') | sym('t').map(|_|'\t')
+}
+
+fn qqstring<'a>() -> Parser<'a, char, (char, String)> {
+    let escape_sequence = sym('\\') * special_char();
     let string = sym('"') + (none_of("\\\"") | escape_sequence).repeat(0..) - sym('"');
     string.map(|(a, b)| (a, b.iter().collect()))
 }
 
 fn qstring<'a>() -> Parser<'a, char, (char, String)> {
-    let special_char = sym('\\') | sym('/') | sym('"')
-        | sym('b').map(|_|'\x08') | sym('f').map(|_|'\x0C')
-        | sym('n').map(|_|'\n') | sym('r').map(|_|'\r') | sym('t').map(|_|'\t');
-    let escape_sequence = sym('\\') * special_char;
+    let escape_sequence = sym('\\') * special_char();
     let string = sym('\'') + (none_of("\\\'") | escape_sequence).repeat(0..) - sym('\'');
     string.map(|(a, b)| (a, b.iter().collect()))
 }
