@@ -19,10 +19,9 @@ fn ident<'a>() -> Parser<'a, char, String> {
     let dot = sym('.') | sym(':') | sym('-');
 
     // [a-z] [a-z0-9]* ([:.]+[a-z0-9]+)*
-    let ident = first + alnum().repeat(0..) + (dot.repeat(1..) + alnum().repeat(1..)).repeat(0..) - space();
+    let ident = first + alnum().repeat(0..) + (dot.repeat(1..) + alnum().repeat(1..)).repeat(0..);
     
-    // wtf: -space() not working here (got consumed), so trim_end
-    ident.collect().map(String::from_iter).map(|s| s.trim_end().to_string())
+    ident.collect().map(String::from_iter) - space()
 }
 
 fn number<'a>() -> Parser<'a, char, (f64, String)> {
