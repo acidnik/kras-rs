@@ -73,11 +73,11 @@ impl<'a> DetectDataIter<'a> {
 
 
 fn is_open(c: char) -> bool {
-    c == '(' || c == '[' || c == '{'
+    c == '(' || c == '[' || c == '{' || c == '<'
 }
 
 fn is_close(c: char) -> bool {
-    c == ')' || c == ']' || c == '}'
+    c == ')' || c == ']' || c == '}' || c == '>'
 }
 
 fn get_open(c: char) -> char {
@@ -85,6 +85,7 @@ fn get_open(c: char) -> char {
         ')' => '(',
         ']' => '[',
         '}' => '{',
+        '>' => '<',
         _ => panic!(format!("wrong close char {:?}", c))
     }
 }
@@ -95,6 +96,7 @@ fn get_close(c: char) -> char {
         '(' => ')',
         '[' => ']',
         '{' => '}',
+        '<' => '>',
         _ => panic!(format!("wrong open char {:?}", c))
     }
 }

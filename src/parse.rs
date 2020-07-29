@@ -84,7 +84,8 @@ fn array<'a>() -> Parser<'a, char, (String, Vec<KrasValue>, String)> {
     let arr = sym('[') + space() * list_item().repeat(0..) + sym(']');
     let set = sym('{') + space() * list_item().repeat(0..) + sym('}');
     let tup = sym('(') + space() * list_item().repeat(0..) + sym(')');
-    (arr | set | tup).map(|((a, b), c)| (a.to_string(), b, c.to_string() ))
+    let ang = sym('<') + space() * list_item().repeat(0..) + sym('>');
+    (arr | set | tup | ang).map(|((a, b), c)| (a.to_string(), b, c.to_string() ))
 }
 
 fn constructor<'a>() -> Parser<'a, char, KrasValue> {
