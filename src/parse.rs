@@ -109,3 +109,31 @@ fn value<'a>() -> Parser<'a, char, KrasValue> {
 pub fn kras<'a>() -> Parser<'a, char, KrasValue> {
     space() * value() - end()
 }
+
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn test_kras() -> () {
+        let tests = vec![
+            ("{}", KrasValue::List(("{".to_string(), vec![], "}".to_string()))),
+            ("{a=>b}", KrasValue::List(("{".to_string(), 
+                vec![
+                    KrasValue::ListItem((Box::new(
+                        KrasValue::Ident("a".to_string()),
+                    ), Some("=>".to_string()))),
+                    KrasValue::ListItem((Box::new(
+                        KrasValue::Ident("b".to_string()),
+                    ), None))
+                ],
+                "}".to_string()))
+             ),
+        ];
+        for (input, expected) in tests {
+            let input = input.chars().collect::<Vec<_>>();
+            let res = kras().parse(&input).unwrap();
+            assert_eq!(res, expected);
+        }
+    }
+}

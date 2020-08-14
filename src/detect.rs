@@ -120,6 +120,7 @@ impl<'a> Iterator for DetectDataIter<'a> {
         let mut escape = false;
         let mut str_char: Option<char> = None;
         // println!("begin {}", self.start);
+
         for (idx, c) in self.input[self.start..].iter().enumerate() {
             let idx = idx + self.start;
             let c = *c;
@@ -155,7 +156,8 @@ impl<'a> Iterator for DetectDataIter<'a> {
                 *cnt += 1;
                 all_cnt += 1;
             }
-            else if is_close(c) {
+            else if is_close(c) && (c != '>' || idx == 0 || self.input[idx-1] != '=') {
+                // hack: do not treat '=>' as a part of a bracket sequence
                 let op = get_open(c);
                 // println!("cnt_each = {:?}; all_cnt = {}", cnt_each, all_cnt);
                 let cnt = cnt_each.entry(op).or_insert(0);
@@ -202,6 +204,8 @@ mod test {
             ("(1, 2, '{')", vec![(0, "(1, 2, '{')")]),
             ("[']']", vec![(0, "[']']")]),
             ("'[]'", vec![]),
+            ("{a=>b}", vec![(0, "{a=>b}")]),
+            ("<class 'str'>", vec![(0, "<class 'str'>")]),
             // ("", vec![]),
             // ("({{[[{{[{}[{(({}{()()[[(((([([[][](){}()[]])]))))]]}))}]]}}]](){(]][[", vec![(0, "")]),
             // ("([}]{[]()([]{[{}(({}{{}[[]{({[[{[([[{}({}()([(([]))]))]])]}]]})}]}))]})}({(}", vec![(10, "{({[[{[([[{}({}()([(([]))]))]])]}]]})}")]),
@@ -222,7 +226,7 @@ mod test {
     fn rnd_chars() -> Vec<char> {
         let mut rng = thread_rng();
         let num = rng.gen_range(0, 100);
-        let rc = vec!['(', '[', '{', ')', ']', '}'];
+        let rc = vec!['(', '[', '{', ')', ']', '}', '<', '>', '='];
         let mut res = Vec::new();
         for _ in 0..num {
             res.push(rc[rng.gen_range(0, rc.len())])
@@ -234,7 +238,7 @@ mod test {
         let mut rng = thread_rng();
         let mut res = Vec::new();
         let mut stack = Vec::new();
-        let rc = vec!['(', '[', '{'];
+        let rc = vec!['(', '[', '{', '<'];
         for _ in 0..rng.gen_range(1, 500) {
             let c = rc[rng.gen_range(0, 3)];
             res.push(c); // [{{}}{}
