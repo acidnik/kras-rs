@@ -35,7 +35,7 @@ fn number<'a>() -> Parser<'a, char, (f64, String)> {
 
 fn json_unicode<'a>() -> Parser<'a, char, char> {
     let hex = one_of("0123456789abcdefABCDEF");
-    let ch = sym('u') * hex.repeat(1..).map(String::from_iter);
+    let ch = sym('u') * hex.repeat(4).map(String::from_iter);
     ch.convert(|s| u32::from_str_radix(&s, 16)).convert(|n| std::char::from_u32(n).ok_or("not a valid unicode"))
 }
 
@@ -129,6 +129,27 @@ mod test {
                 ],
                 "}".to_string()))
              ),
+        ];
+        for (input, expected) in tests {
+            let input = input.chars().collect::<Vec<_>>();
+            let res = kras().parse(&input).unwrap();
+            assert_eq!(res, expected);
+        }
+    }
+
+    #[test]
+    fn test_unicode() {
+        let tests = vec![
+            (r#"["\u044f"]"#, KrasValue::List((
+                "[".to_string(),
+                vec![KrasValue::ListItem((Box::new(KrasValue::Str(('"', "я".to_string()))), None))],
+                "]".to_string()
+            ))),
+            (r#"["\u044f2"]"#, KrasValue::List((
+                "[".to_string(),
+                vec![KrasValue::ListItem((Box::new(KrasValue::Str(('"', "я2".to_string()))), None))],
+                "]".to_string()
+            ))),
         ];
         for (input, expected) in tests {
             let input = input.chars().collect::<Vec<_>>();
