@@ -143,6 +143,7 @@ impl<'a> Iterator for DetectDataIter<'a> {
                 }
             }
             if str_char.is_some() {
+                // TODO [optional] recursive parsing?
                 continue;
             }
             if is_open(c) {
@@ -201,14 +202,13 @@ mod test {
             ("[[]", vec![(1, "[]")]),
             ("[{ [{}] ]", vec![(3, "[{}]")]),
             ("[[]]  [{}]", vec![(0, "[[]]"), (6, "[{}]")]),
+            // TODO [optional] recursive parsing?
             ("(1, 2, '{')", vec![(0, "(1, 2, '{')")]),
             ("[']']", vec![(0, "[']']")]),
             ("'[]'", vec![]),
             ("{a=>b}", vec![(0, "{a=>b}")]),
             ("<class 'str'>", vec![(0, "<class 'str'>")]),
-            // ("", vec![]),
-            // ("({{[[{{[{}[{(({}{()()[[(((([([[][](){}()[]])]))))]]}))}]]}}]](){(]][[", vec![(0, "")]),
-            // ("([}]{[]()([]{[{}(({}{{}[[]{({[[{[([[{}({}()([(([]))]))]])]}]]})}]}))]})}({(}", vec![(10, "{({[[{[([[{}({}()([(([]))]))]])]}]]})}")]),
+            ("", vec![]),
         ];
         for (input, res) in cases {
             let input = input.chars().collect::<Vec<_>>();
@@ -254,7 +254,7 @@ mod test {
         res
     }
 
-    #[test]
+    // #[test]
     fn test_fuzzy() -> () {
         let iters = 1000;
         for _ in 0..iters {
