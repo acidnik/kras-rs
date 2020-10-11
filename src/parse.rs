@@ -30,14 +30,14 @@ fn plain_number<'a>() -> Parser<'a, char, (f64, String)> {
     let exp = one_of("eE") + one_of("+-").opt() + one_of("0123456789").repeat(1..);
     let number = sym('-').opt() + integer + frac.opt() + exp.opt();
     let repr = number.collect().map(String::from_iter);
-    repr.convert(|s| f64::from_str(&s).and_then(|n| Ok((n, s))) )
+    repr.convert(|s| f64::from_str(&s).map(|n| (n, s)) )
 }
 
 fn hex_number<'a>() -> Parser<'a, char, (f64, String)> {
     let prefix = sym('0') + one_of("xX");
     let integer = one_of("0123456789abcdefABCDEF");
     let hex = (prefix + integer.repeat(1..)).collect().map(String::from_iter);
-    hex.convert(|s| u64::from_str_radix(&s[2..], 16).and_then(|n| Ok((n as f64, s))))
+    hex.convert(|s| u64::from_str_radix(&s[2..], 16).map(|n| (n as f64, s)))
 }
 
 fn number<'a>() -> Parser<'a, char, (f64, String)> {
