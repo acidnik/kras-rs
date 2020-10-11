@@ -24,13 +24,24 @@ fn ident<'a>() -> Parser<'a, char, String> {
     ident.collect().map(String::from_iter) - space()
 }
 
-fn number<'a>() -> Parser<'a, char, (f64, String)> {
+fn plain_number<'a>() -> Parser<'a, char, (f64, String)> {
     let integer = (one_of("123456789") - one_of("0123456789").repeat(0..)) | sym('0');
     let frac = sym('.') + one_of("0123456789").repeat(1..);
     let exp = one_of("eE") + one_of("+-").opt() + one_of("0123456789").repeat(1..);
     let number = sym('-').opt() + integer + frac.opt() + exp.opt();
     let repr = number.collect().map(String::from_iter);
     repr.convert(|s| f64::from_str(&s).and_then(|n| Ok((n, s))) )
+}
+
+fn hex_number<'a>() -> Parser<'a, char, (f64, String)> {
+    let prefix = sym('0') + one_of("xX");
+    let integer = one_of("0123456789abcdefABCDEF");
+    let hex = (prefix + integer.repeat(1..)).collect().map(String::from_iter);
+    hex.convert(|s| u64::from_str_radix(&s[2..], 16).and_then(|n| Ok((n as f64, s))))
+}
+
+fn number<'a>() -> Parser<'a, char, (f64, String)> {
+    hex_number() | plain_number()
 }
 
 fn json_unicode<'a>() -> Parser<'a, char, char> {
@@ -114,6 +125,26 @@ pub fn kras<'a>() -> Parser<'a, char, KrasValue> {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    fn check_single_value(input: &str, expected: &KrasValue) {
+        check_single_value_with(input, expected, |a, b| a == b)
+    }
+
+    // fn check_single_value_with(input: &str, expected: &KrasValue, cmp_with: Fn(&KrasValue, &KrasValue) -> bool) { // ? this looks like the same thing but does not compiles
+    fn check_single_value_with<F>(input: &str, expected: &KrasValue, cmp_with: F)
+        where F: Fn(&KrasValue, &KrasValue) -> bool
+    {
+        let input = input.chars().collect::<Vec<_>>();
+        let res = kras().parse(&input);
+        if let Ok(KrasValue::List((_, ref res, _))) = res {
+            if let Some(KrasValue::ListItem((item, _))) = res.get(0) {
+                assert!(cmp_with(&item, &expected), "{:?} != {:?}", **item, *expected);
+                return
+            }
+        }
+        assert!(false, "{:?} != {:?}", res, expected);
+    }
+
     #[test]
     fn test_kras() -> () {
         let tests = vec![
@@ -140,21 +171,43 @@ mod test {
     #[test]
     fn test_unicode() {
         let tests = vec![
-            (r#"["\u044f"]"#, KrasValue::List((
-                "[".to_string(),
-                vec![KrasValue::ListItem((Box::new(KrasValue::Str(('"', "я".to_string()))), None))],
-                "]".to_string()
-            ))),
-            (r#"["\u044f2"]"#, KrasValue::List((
-                "[".to_string(),
-                vec![KrasValue::ListItem((Box::new(KrasValue::Str(('"', "я2".to_string()))), None))],
-                "]".to_string()
-            ))),
+            (r#"["\u044f"]"#, KrasValue::Str(('"', "я".to_string()))),
+            (r#"["\u044f2"]"#, KrasValue::Str(('"', "я2".to_string()))),
         ];
         for (input, expected) in tests {
-            let input = input.chars().collect::<Vec<_>>();
-            let res = kras().parse(&input).unwrap();
-            assert_eq!(res, expected);
+            check_single_value(&input, &expected);
+        }
+    }
+
+    #[test]
+    fn test_numbers() {
+        let tests = vec![
+            ("[1]", KrasValue::Num(OrdF64(1.0, "1".to_string()))),
+            ("[123]", KrasValue::Num(OrdF64(123.0, "123".to_string()))),
+            ("[0.123]", KrasValue::Num(OrdF64(0.123, "0.123".to_string()))),
+            ("[0x1]", KrasValue::Num(OrdF64(1.0, "0x1".to_string()))),
+            ("[0xdeadbeef]", KrasValue::Num(OrdF64(3735928559.0, "0xdeadbeef".to_string()))),
+            ("[0x7f1bcd0b0d40]", KrasValue::Num(OrdF64(139757380898112.0, "0x7f1bcd0b0d40".to_string()))),
+        ];
+        for (input, expected) in tests {
+            check_single_value_with(&input, &expected, |a, b| {
+                if let KrasValue::Num(OrdF64(fa, sa)) = a {
+                    let radix = if sa.len() >= 2 && sa.chars().skip(2).next().unwrap() == 'x' {
+                        16
+                    }
+                    else {
+                        10
+                    };
+                    if radix == 16 {
+                        assert_eq!(u64::from_str_radix(&sa, radix).unwrap() as f64, *fa);
+                    }
+                    if let KrasValue::Num(OrdF64(fb, sb)) = b {
+                        return fa == fb && sa == sb
+                    }
+                }
+                assert!(false, "invalid types: {:?} {:?}", a, b);
+                false
+            });
         }
     }
 }
