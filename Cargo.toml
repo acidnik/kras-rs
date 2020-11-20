@@ -1,6 +1,6 @@
 [package]
 name = "kras"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["Nikita Bilous <nikita@bilous.me>"]
 edition = "2018"
 
@@ -10,7 +10,7 @@ categories = ["command-line-utilities"]
 homepage = "https://github.com/acidnik/kras-rs"
 repository = "https://github.com/acidnik/kras-rs"
 readme = "README.md"
-description = "Detect, highlight and pretty print structured data"
+description = "Detect, highlight and pretty print almost any structured data inside plain text"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

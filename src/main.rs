@@ -52,7 +52,7 @@ fn main() {
     let matches = App::new("Kras")
         .version("0.1.0")
         .author("Nikita Bilous <nikita@bilous.me>")
-        .about("Detect, highlight and pretty print structured data")
+        .about("Detect, highlight and pretty print almost any structured data inside plain text")
         .arg(Arg::with_name("indent")
              .short("i")
              .long("indent")
@@ -75,6 +75,11 @@ fn main() {
             .short("s")
             .long("sort")
             .help("sort keys")
+        )
+        .arg(Arg::with_name("jobs")
+            .short("j")
+            .takes_value(true)
+            .help("number of parallel jobs. Default is num_cpus")
         )
         .arg(Arg::with_name("width")
             .short("w")
@@ -114,12 +119,15 @@ fn main() {
         }
     };
     let sort = matches.is_present("sort");
+    let jobs = match matches.value_of("jobs") {
+        Some(v) => usize::from_str(v).unwrap(),
+        None => num_cpus::get(),
+    };
+
     let input = FileInput::new(&files);
     let reader = BufReader::new(input);
    
     // input lines => input_sender => [worker] input_receiver => output_sender => [printer] output_receiver 
-
-    let jobs = num_cpus::get();
 
     let (output_sender, output_receiver) = bounded(jobs*128);
     let (input_sender, input_receiver) = bounded::<(usize, String)>(jobs*128);
