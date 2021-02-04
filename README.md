@@ -24,6 +24,7 @@ FLAGS:
     -C, --force-color    alias for --color yes
     -h, --help           Prints help information
     -s, --sort           sort keys
+    -r, --recursive      try to parse nested strings
     -V, --version        Prints version information
 
 OPTIONS:
@@ -34,6 +35,14 @@ OPTIONS:
 ARGS:
     <input>...    Input files or stdin
 ```
+
+Using with pgcli
+================
+`kras` really shines when used for reading jsons stored in database. For pgcli add to your `.config/pgcli/config`  
+```
+pager = kras -Csw120 | less -iRXF
+```
+Now your jsons will be pretty-printed! Hint: use `\x`
 
 Acknowledgement
 ===============

@@ -42,10 +42,13 @@ use detect::*;
 mod pretty_value;
 
 mod parse;
-use parse::kras;
+use parse::{kras, parse_str};
 
 mod stopwatch;
 use stopwatch::Stopwatch;
+
+mod printer;
+use printer::Printer;
 
 
 fn main() {
@@ -75,6 +78,11 @@ fn main() {
             .short("s")
             .long("sort")
             .help("sort keys")
+        )
+        .arg(Arg::with_name("recursive")
+            .short("r")
+            .long("recursive")
+            .help("try to parse nested strings")
         )
         .arg(Arg::with_name("jobs")
             .short("j")
@@ -119,89 +127,41 @@ fn main() {
         }
     };
     let sort = matches.is_present("sort");
+    let recursive = matches.is_present("recursive");
     let jobs = match matches.value_of("jobs") {
         Some(v) => usize::from_str(v).unwrap(),
         None => num_cpus::get(),
     };
 
+    // ---- done parsing arguments. prepare to read from files
+
     let input = FileInput::new(&files);
     let reader = BufReader::new(input);
    
-    // input lines => input_sender => [worker] input_receiver => output_sender => [printer] output_receiver 
+    // pipeline: input lines => input_sender => [worker] input_receiver => output_sender => [printer] output_receiver 
 
     let (output_sender, output_receiver) = bounded(jobs*128);
     let (input_sender, input_receiver) = bounded::<(usize, String)>(jobs*128);
 
-    let mut next_line_num = 0;
-    let mut output_queue = BinaryHeap::<Reverse<(usize, String)>>::new();
-    let mut max_qlen = 0;
-    let printer = thread::spawn(move || {
-        while let Ok((i, line)) = output_receiver.recv() {
-            max_qlen = usize::max(max_qlen, output_queue.len());
-            if i == next_line_num {
-                println!("{}", line);
-                next_line_num += 1;
-            }
-            else {
-                output_queue.push(Reverse((i, line)));
-            }
-
-            if let Some(Reverse((i, line))) = output_queue.peek() {
-                if *i == next_line_num {
-                    println!("{}", line);
-                    next_line_num += 1;
-                    output_queue.pop();
-                }
-            }
-        }
-        while let Some(Reverse((_, line))) = output_queue.pop() {
-            println!("{}", line);
-        }
-        debug!("max queue len = {max_qlen}", max_qlen=max_qlen)
-    });
+    let printer = Printer::new(output_receiver);
 
     (0..jobs).map(|_| {
         let input_receiver = input_receiver.clone();
         let output_sender = output_sender.clone();
         thread::spawn(move || {
             while let Ok((i, s)) = input_receiver.recv() {
-                // TODO add flag to skip comments?
-                // if s.starts_with("//") {
-                //     continue
-                // }
-                let mut res = Vec::new();
-                let buf = s.chars().collect::<Vec<_>>();
-                let mut start = 0;
-                for (pos, data) in DetectDataIter::new(&buf) {
-                    debug!("DETECT: {}", String::from_iter(data));
-                    let mut stopwatch = Stopwatch::new("parse", 0);
-                    let r = kras().parse(data);
-                    stopwatch.stop();
-                    if let Ok(mut r) = r {
-                        debug!("PARSED: {:?}", r);
-                        res.push(String::from_iter(buf[start..pos].iter()));
-                        start = pos + data.len();
-                        let mut stopwatch = Stopwatch::new("postprocess", 0);
-                        r.postprocess(sort);
-                        stopwatch.stop();
-                        debug!("POSTPROC: {:?}", r);
-                        let mut stopwatch = Stopwatch::new("pretty", 0);
-                        let doc = r.to_doc(indent, false);
-                        stopwatch.stop();
-                        let mut buffer = match color_choice {
-                            ColorChoice::Always | ColorChoice::Auto => termcolor::Buffer::ansi(),
-                            ColorChoice::Never => termcolor::Buffer::no_color(),
-                            _ => termcolor::Buffer::no_color(),
-                        };
-                        doc.render_colored(min_len, &mut buffer).unwrap();
-                        res.push(std::str::from_utf8(buffer.as_slice()).unwrap().to_string());
-                    }
-                    else {
-                        debug!("parse error {:?}", r);
-                    }
-                }
-                res.push(String::from_iter(buf[start..].iter()));
-                output_sender.send((i, res.join(""))).expect("send");
+                let line = parse_str(&s, sort, recursive);
+                debug!("line = {:?}", line);
+                let doc = line.to_doc(indent, false);
+                let mut buffer = match color_choice {
+                    ColorChoice::Always | ColorChoice::Auto => termcolor::Buffer::ansi(),
+                    ColorChoice::Never => termcolor::Buffer::no_color(),
+                    _ => termcolor::Buffer::no_color(),
+                };
+                doc.render_colored(min_len, &mut buffer).unwrap();
+                output_sender.send(
+                    (i, std::str::from_utf8(buffer.as_slice()).unwrap().to_string())
+                ).expect("send")
             }
         })
     }).for_each(drop);
@@ -219,7 +179,7 @@ fn main() {
     
     drop(output_sender);
     
-    printer.join().expect("printer join");
+    printer.join()
 }
 
 fn init_logger(level: usize) {
