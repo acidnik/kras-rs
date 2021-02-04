@@ -59,14 +59,16 @@ impl PartialOrd for CharPosition {
 
 pub struct DetectDataIter<'a> {
     input: &'a [char],
-    start: usize
+    start: usize,
+    recursive: bool,
 }
 
 impl<'a> DetectDataIter<'a> {
-    pub fn new(input: &'a [char]) -> Self {
+    pub fn new(input: &'a [char], recursive: bool) -> Self {
         DetectDataIter {
             input,
             start: 0,
+            recursive: recursive,
         }
     }
 }
@@ -143,8 +145,9 @@ impl<'a> Iterator for DetectDataIter<'a> {
                 }
             }
             if str_char.is_some() {
-                // TODO [optional] recursive parsing?
-                continue;
+                if ! self.recursive {
+                    continue;
+                }
             }
             if is_open(c) {
                 let cnt = cnt_each.entry(c).or_insert(0);
@@ -213,7 +216,7 @@ mod test {
         for (input, res) in cases {
             let input = input.chars().collect::<Vec<_>>();
             println!(">> '{}'", String::from_iter(input.iter()));
-            let d = DetectDataIter::new(&input).collect::<Vec<_>>();
+            let d = DetectDataIter::new(&input, false).collect::<Vec<_>>();
             println!("{:?}", d);
             assert_eq!(d.len(), res.len());
             for ((tn, t), (rn, r)) in res.iter().zip(d.iter()) {
@@ -266,7 +269,7 @@ mod test {
             input.append(&mut mid_chars);
             input.append(&mut last_chars);
             println!("BEGIN {:?}", String::from_iter(input.iter()));
-            let d = DetectDataIter::new(&input).collect::<Vec<_>>();
+            let d = DetectDataIter::new(&input, false).collect::<Vec<_>>();
             assert!(d.len() >= 1);
         }
     }

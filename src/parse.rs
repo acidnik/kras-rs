@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use pom::parser::*;
 
-use crate::pretty_value::*;
+use crate::{detect::DetectDataIter, pretty_value::*, stopwatch::Stopwatch};
 
 fn space<'a>() -> Parser<'a, char, ()> {
     one_of(" \t\r\n").repeat(0..).discard()
@@ -121,6 +121,68 @@ pub fn kras<'a>() -> Parser<'a, char, KrasValue> {
     space() * value() - end()
 }
 
+struct RecursiveStringParser(bool);
+
+impl KrasVisitor for RecursiveStringParser {
+    fn visit_str(&self, val: &mut KrasValue) {
+        if let KrasValue::Str((_, ref s)) = val {
+            let mut inner = parse_str(s, self.0, true);
+            debug!("rec parse: {:?}", inner);
+            if let KrasValue::RawList(ref mut items) = inner {
+                if items.len() == 1 {
+                    let single_val = items.pop().unwrap();
+                    if let KrasValue::RawStr(_) = single_val {
+                        // parsed Str("a b c") as RawStr("a b c").
+                        // Do nothing and let `val` be
+                    }
+                    else {
+                        *val = single_val
+                    }
+                }
+                else {
+                    *val = inner
+                }
+            }
+        }
+    }
+}
+
+
+pub fn parse_str(s: &str, sort: bool, recursive: bool) -> KrasValue {
+    let mut res = Vec::new();
+    let buf = s.chars().collect::<Vec<_>>();
+    let mut start = 0;
+    for (pos, data) in DetectDataIter::new(&buf, recursive) {
+        debug!("DETECT: {}", String::from_iter(data));
+        let mut stopwatch = Stopwatch::new("parse", 0);
+        let r = kras().parse(data);
+        stopwatch.stop();
+        if let Ok(mut r) = r {
+            debug!("PARSED: {:?}", r);
+            if pos > start {
+                res.push(KrasValue::RawStr(String::from_iter(buf[start..pos].iter())));
+            }
+            start = pos + data.len();
+            let mut stopwatch = Stopwatch::new("postprocess", 0);
+            r.postprocess(sort);
+            if recursive {
+                let rec_parser = RecursiveStringParser(sort);
+                r.visit(&rec_parser)
+            }
+            stopwatch.stop();
+            debug!("POSTPROC: {:?}", r);
+            res.push(r);
+        }
+        else {
+            // TODO what will happend here?
+            debug!("parse error {:?}", r);
+        }
+    }
+    if start < buf.len() {
+        res.push(KrasValue::RawStr(String::from_iter(buf[start..].iter())));
+    }
+    KrasValue::RawList(res)
+}
 
 #[cfg(test)]
 mod test {

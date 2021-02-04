@@ -28,6 +28,12 @@ impl PartialOrd for OrdF64 {
 
 #[derive(Debug, Clone, Ord, Eq, PartialEq, PartialOrd)]
 pub enum KrasValue {
+    // raw string; the leftovers of parse(); should be printed without highlighting
+    RawStr(String),
+
+    // list that don't have braces or delimeters; just a storage for raw strings and real (parsed) values
+    RawList(Vec<KrasValue>),
+    
     // quoted string
     Str((char, String)),
 
@@ -117,6 +123,7 @@ impl KrasValue {
             _ => {},
         }
     }
+    
     fn fix_comma(&self, list: &mut Vec<KrasValue>) {
         // {"2": 2, "1": 1} => sort => {"1": 1<no comma> "2": 2,<extra comma>} 
         // => fix => {"1": 1,<add comma> "2": 2<remove comma> } => {"1": 1, "2": 2}
@@ -136,6 +143,36 @@ impl KrasValue {
                     _ => {},
                 }
             }
+        }
+    }
+}
+
+pub trait KrasVisitor {
+    fn visit_str(&self, val: &mut KrasValue);
+}
+
+impl KrasValue {
+    pub fn visit(&mut self, visitor: &dyn KrasVisitor) {
+        match self {
+            KrasValue::Str(_) => visitor.visit_str(self),
+            KrasValue::RawStr(_) => {}
+            KrasValue::RawList(_) => {}
+            KrasValue::ListItem((c, _)) => {
+                c.visit(visitor)
+            }
+            KrasValue::Pair((_k, _d, v, _d2)) => {
+                v.visit(visitor)
+            }
+            KrasValue::List((_, b, _)) => {
+                for x in b {
+                    x.visit(visitor)
+                }
+            }
+            KrasValue::Ident(_) => {}
+            KrasValue::Constructor((_, args)) => {
+                args.visit(visitor)
+            }
+            KrasValue::Num(_) => {}
         }
     }
 }
@@ -213,6 +250,18 @@ impl KrasValue {
                 RcDoc::nil()
                     .append(id.to_doc(indent, is_key))
                     .append(args.to_doc(indent, is_key))
+                    .group()
+            }
+            KrasValue::RawStr(s) => {
+                RcDoc::as_string(s)
+            }
+            KrasValue::RawList(it) => {
+                RcDoc::nil()
+                    .nest(nest)
+                    .append(RcDoc::intersperse(it.iter().map(|x| x.to_doc(indent, false)), RcDoc::line_())
+                        .nest(nest)
+                        // .append(Doc::line_())
+                    )
                     .group()
             }
         }.group()
