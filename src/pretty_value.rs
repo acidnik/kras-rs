@@ -257,10 +257,8 @@ impl KrasValue {
             }
             KrasValue::RawList(it) => {
                 RcDoc::nil()
-                    .nest(nest)
-                    .append(RcDoc::intersperse(it.iter().map(|x| x.to_doc(indent, false)), RcDoc::line_())
-                        .nest(nest)
-                        // .append(Doc::line_())
+                    .append(RcDoc::intersperse(
+                        it.iter().map(|x| x.to_doc(indent, false)), RcDoc::nil())
                     )
                     .group()
             }
