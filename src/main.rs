@@ -45,9 +45,6 @@ mod stopwatch;
 mod printer;
 use printer::Printer;
 
-mod printer;
-use printer::Printer;
-
 
 fn main() {
     let matches = App::new("Kras")
