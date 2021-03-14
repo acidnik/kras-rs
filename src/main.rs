@@ -16,7 +16,7 @@ extern crate env_logger;
 extern crate atty;
 
 extern crate clap;
-use clap::{Arg, App};
+use clap::{App, Arg, crate_authors, crate_description, crate_name, crate_version};
 
 extern crate fileinput;
 use fileinput::FileInput;
@@ -47,10 +47,10 @@ use printer::Printer;
 
 
 fn main() {
-    let matches = App::new("Kras")
-        .version("0.1.0")
-        .author("Nikita Bilous <nikita@bilous.me>")
-        .about("Detect, highlight and pretty print almost any structured data inside plain text")
+    let matches = App::new(crate_name!())
+        .version(crate_version!())
+        .author(crate_authors!("\n"))
+        .about(crate_description!())
         .arg(Arg::with_name("indent")
              .short("i")
              .long("indent")
@@ -147,16 +147,8 @@ fn main() {
             while let Ok((i, s)) = input_receiver.recv() {
                 let line = parse_str(&s, sort, recursive);
                 debug!("line = {:?}", line);
-                let doc = line.to_doc(indent, false);
-                let mut buffer = match color_choice {
-                    ColorChoice::Always | ColorChoice::Auto => termcolor::Buffer::ansi(),
-                    ColorChoice::Never => termcolor::Buffer::no_color(),
-                    _ => termcolor::Buffer::no_color(),
-                };
-                doc.render_colored(min_len, &mut buffer).unwrap();
-                output_sender.send(
-                    (i, std::str::from_utf8(buffer.as_slice()).unwrap().to_string())
-                ).expect("send")
+                let rendered_str = line.render(indent, min_len, color_choice);
+                output_sender.send((i, rendered_str)).expect("send");
             }
         })
     }).for_each(drop);

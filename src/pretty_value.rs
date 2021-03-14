@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 
 use pretty::*;
 use pretty::termcolor::{Color, ColorSpec};
+use termcolor::{Buffer, ColorChoice};
 
 #[derive(Debug, Clone)]
 pub struct OrdF64(pub f64, pub String);
@@ -263,6 +264,23 @@ impl KrasValue {
                     .group()
             }
         }.group()
+    }
+
+    pub fn render(&self, indent: usize, min_len: usize, color_choice: ColorChoice) -> String {
+        let mut buffer = match color_choice {
+            ColorChoice::Always | ColorChoice::Auto => termcolor::Buffer::ansi(),
+            ColorChoice::Never => termcolor::Buffer::no_color(),
+            _ => termcolor::Buffer::no_color(),
+        };
+        match self {
+            KrasValue::RawStr(s) => { s.clone() }
+            KrasValue::RawList(items) => { items.iter().map(|i| i.render(indent, min_len, color_choice)).collect() }
+            _ => {
+                let doc = self.to_doc(indent, false);
+                doc.render_colored(min_len, &mut buffer).unwrap();
+                std::str::from_utf8(buffer.as_slice()).unwrap().to_string()
+            }
+        }
     }
 }
 
