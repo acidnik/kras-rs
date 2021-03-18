@@ -121,6 +121,7 @@ pub fn kras<'a>() -> Parser<'a, char, KrasValue> {
     space() * value() - end()
 }
 
+// bool sort
 struct RecursiveStringParser(bool);
 
 impl KrasVisitor for RecursiveStringParser {

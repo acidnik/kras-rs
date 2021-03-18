@@ -253,29 +253,22 @@ impl KrasValue {
                     .append(args.to_doc(indent, is_key))
                     .group()
             }
-            KrasValue::RawStr(s) => {
-                RcDoc::as_string(s)
-            }
-            KrasValue::RawList(it) => {
-                RcDoc::nil()
-                    .append(RcDoc::intersperse(
-                        it.iter().map(|x| x.to_doc(indent, false)), RcDoc::nil())
-                    )
-                    .group()
+            _ => {
+                panic!(format!("{:?}: should not render these", self))
             }
         }.group()
     }
 
     pub fn render(&self, indent: usize, min_len: usize, color_choice: ColorChoice) -> String {
-        let mut buffer = match color_choice {
-            ColorChoice::Always | ColorChoice::Auto => termcolor::Buffer::ansi(),
-            ColorChoice::Never => termcolor::Buffer::no_color(),
-            _ => termcolor::Buffer::no_color(),
-        };
         match self {
             KrasValue::RawStr(s) => { s.clone() }
             KrasValue::RawList(items) => { items.iter().map(|i| i.render(indent, min_len, color_choice)).collect() }
             _ => {
+                let mut buffer = match color_choice {
+                    ColorChoice::Always | ColorChoice::Auto => termcolor::Buffer::ansi(),
+                    ColorChoice::Never => termcolor::Buffer::no_color(),
+                    _ => termcolor::Buffer::no_color(),
+                };
                 let doc = self.to_doc(indent, false);
                 doc.render_colored(min_len, &mut buffer).unwrap();
                 std::str::from_utf8(buffer.as_slice()).unwrap().to_string()

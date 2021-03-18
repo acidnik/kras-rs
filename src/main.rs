@@ -140,7 +140,7 @@ fn main() {
 
     let printer = Printer::new(output_receiver);
 
-    (0..jobs).map(|_| {
+    (0..jobs).for_each(|_| {
         let input_receiver = input_receiver.clone();
         let output_sender = output_sender.clone();
         thread::spawn(move || {
@@ -150,10 +150,10 @@ fn main() {
                 let rendered_str = line.render(indent, min_len, color_choice);
                 output_sender.send((i, rendered_str)).expect("send");
             }
-        })
-    }).for_each(drop);
+        });
+    });
     
-    reader.lines().enumerate().map(move |(i, line)| {
+    reader.lines().enumerate().for_each(move |(i, line)| {
         match line {
             Ok(s) => {
                 input_sender.send((i, s)).expect("input send");
@@ -162,7 +162,7 @@ fn main() {
                 error!("{:?}", err);
             }
         }
-    }).for_each(drop);
+    });
     
     drop(output_sender);
     

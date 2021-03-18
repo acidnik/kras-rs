@@ -16,7 +16,7 @@ pub struct Printer {
 impl Printer {
     pub fn new(receiver: Receiver<(usize, String)>) -> Self {
         // just for statistics: how many lines max were in the queue?
-        let mut max_qlen= 0;
+        let mut max_qlen = 0;
         // number of the next line to print
         let mut next_line_num = 0;
         // a storage for lines that are to be printed
