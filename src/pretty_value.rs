@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 
 use pretty::*;
 use pretty::termcolor::{Color, ColorSpec};
-use termcolor::{Buffer, ColorChoice};
+use termcolor::{ColorChoice};
 
 #[derive(Debug, Clone)]
 pub struct OrdF64(pub f64, pub String);
@@ -253,8 +253,15 @@ impl KrasValue {
                     .append(args.to_doc(indent, is_key))
                     .group()
             }
-            _ => {
-                panic!(format!("{:?}: should not render these", self))
+            KrasValue::RawStr(s) => {
+                RcDoc::as_string(s)
+            }
+            KrasValue::RawList(it) => {
+                RcDoc::nil()
+                    .append(RcDoc::intersperse(
+                        it.iter().map(|x| x.to_doc(indent, false)), RcDoc::nil())
+                    )
+                    .group()
             }
         }.group()
     }

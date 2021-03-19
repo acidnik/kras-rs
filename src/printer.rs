@@ -1,5 +1,6 @@
-use std::{cmp::Reverse, collections::BinaryHeap, thread::JoinHandle};
+use std::{cmp::Reverse, collections::BinaryHeap, thread::{JoinHandle}};
 use crossbeam::crossbeam_channel::Receiver;
+use std::io::Write;
 
 /*
 This object consumes lines from several threads. Each message is a
@@ -22,10 +23,12 @@ impl Printer {
         // a storage for lines that are to be printed
         let mut output_queue = BinaryHeap::<Reverse<(usize, String)>>::new();
         let thread = std::thread::spawn(move || {
+            let stdout = std::io::stdout();
+            let mut stdout = stdout.lock();
             while let Ok((i, line)) = receiver.recv() {
                 max_qlen = usize::max(max_qlen, output_queue.len());
                 if i == next_line_num {
-                    println!("{}", line);
+                    write!(stdout, "{}", line).unwrap();
                     next_line_num += 1;
                 }
                 else {
@@ -34,7 +37,7 @@ impl Printer {
 
                 if let Some(Reverse((i, line))) = output_queue.peek() {
                     if *i == next_line_num {
-                        println!("{}", line);
+                        write!(stdout, "{}", line).unwrap();
                         next_line_num += 1;
                         output_queue.pop();
                     }

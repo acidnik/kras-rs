@@ -1,7 +1,7 @@
 // disable some warnings for debug build
 #![cfg_attr(debug_assertions, allow(dead_code, unused_imports, unused_mut, unused_variables, unreachable_code))]
 
-use std::io::BufReader;
+use std::io::{BufReader, Read};
 use std::io::BufRead;
 use std::str::FromStr;
 use std::io::Write;
@@ -90,6 +90,11 @@ fn main() {
             .help("maximum width of output")
             .default_value("80")
         )
+        .arg(Arg::with_name("multiline")
+            .short("m")
+            .long("multiline")
+            .help("look for data spanning several lines. This will read whole input to memory")
+        )
         .arg(Arg::with_name("debug")
             .long("debug")
             .help("debug mode")
@@ -110,28 +115,34 @@ fn main() {
         }
         else { 
             match matches.value_of("color").unwrap() {
-            "yes" => ColorChoice::Always,
-            "no" => ColorChoice::Never,
-            "auto" => if atty::is(atty::Stream::Stdout) {
-                    ColorChoice::Auto
-                }
-                else {
-                    ColorChoice::Never
-                }
-            _ => unreachable!(),
-        }
-    };
+                "yes" => ColorChoice::Always,
+                "no" => ColorChoice::Never,
+                "auto" => if atty::is(atty::Stream::Stdout) {
+                        ColorChoice::Auto
+                    }
+                    else {
+                        ColorChoice::Never
+                    }
+                _ => unreachable!(),
+            }
+        };
     let sort = matches.is_present("sort");
     let recursive = matches.is_present("recursive");
-    let jobs = match matches.value_of("jobs") {
-        Some(v) => usize::from_str(v).unwrap(),
-        None => num_cpus::get(),
-    };
+    let multiline = matches.is_present("multiline");
+    let jobs = if multiline {
+            1 
+        } 
+        else {
+            match matches.value_of("jobs") {
+                Some(v) => usize::from_str(v).unwrap(),
+                None => num_cpus::get(),
+            }
+        };
 
     // ---- done parsing arguments. prepare to read from files
 
     let input = FileInput::new(&files);
-    let reader = BufReader::new(input);
+    let mut reader = BufReader::new(input);
    
     // pipeline: input lines => input_sender => [worker] input_receiver => output_sender => [printer] output_receiver 
 
@@ -152,21 +163,32 @@ fn main() {
             }
         });
     });
-    
-    reader.lines().enumerate().for_each(move |(i, line)| {
-        match line {
-            Ok(s) => {
-                input_sender.send((i, s)).expect("input send");
+
+    if multiline {
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf).unwrap();
+        let input = std::str::from_utf8(&buf).unwrap().to_string();
+        input_sender.send((0, input)).expect("input send");
+        // in else branch input_sender is moved to closure and gets dropped when for_each ends
+        // here we have to drop it ourselves
+        drop(input_sender);
+    }
+    else {
+        reader.lines().enumerate().for_each(move |(i, line)| {
+            match line {
+                Ok(s) => {
+                    input_sender.send((i, s)).expect("input send");
+                }
+                Err(err) => {
+                    error!("{:?}", err);
+                }
             }
-            Err(err) => {
-                error!("{:?}", err);
-            }
-        }
-    });
+        });
+    }
     
     drop(output_sender);
     
-    printer.join()
+    printer.join();
 }
 
 fn init_logger(level: usize) {
