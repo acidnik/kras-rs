@@ -28,7 +28,7 @@ impl Printer {
             while let Ok((i, line)) = receiver.recv() {
                 max_qlen = usize::max(max_qlen, output_queue.len());
                 if i == next_line_num {
-                    write!(stdout, "{}", line).unwrap();
+                    write!(stdout, "{}\n", line).unwrap();
                     next_line_num += 1;
                 }
                 else {
@@ -37,14 +37,14 @@ impl Printer {
 
                 if let Some(Reverse((i, line))) = output_queue.peek() {
                     if *i == next_line_num {
-                        write!(stdout, "{}", line).unwrap();
+                        write!(stdout, "{}\n", line).unwrap();
                         next_line_num += 1;
                         output_queue.pop();
                     }
                 }
             }
             while let Some(Reverse((_, line))) = output_queue.pop() {
-                println!("{}", line);
+                write!(stdout, "{}\n", line).unwrap();
             }
             debug!("max queue len = {max_qlen}", max_qlen=max_qlen)
 
