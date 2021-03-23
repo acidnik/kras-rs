@@ -35,8 +35,8 @@ pub enum KrasValue {
     // list that don't have braces or delimeters; just a storage for raw strings and real (parsed) values
     RawList(Vec<KrasValue>),
     
-    // quoted string
-    Str((char, String)),
+    // quoted string: (quote, prefix, str): b"foo" = ('"', "b", "foo")
+    Str((char, String, String)),
 
     // value, delim?
     ListItem((Box<KrasValue>, Option<String>)),
@@ -198,7 +198,8 @@ impl KrasValue {
     pub fn to_doc(&self, indent: usize, is_key: bool) -> RcDoc<ColorSpec> {
         let nest = indent as isize; // why tf _i_size?
         match self {
-            KrasValue::Str((q, s)) => RcDoc::as_string(q.to_string() + s + &q.to_string())
+            KrasValue::Str((q, p, s)) => 
+                RcDoc::as_string(p.to_string() + &q.to_string() + s + &q.to_string())
                 .annotate(ColorSpec::new().set_fg(Some(Color::Red)).set_bold(is_key).clone()),
             KrasValue::Ident(s) => RcDoc::as_string(s)
                 .annotate(ColorSpec::new().set_fg(Some(Color::Blue)).set_bold(is_key).clone()),

@@ -44,6 +44,17 @@ fn number<'a>() -> Parser<'a, char, (f64, String)> {
     hex_number() | plain_number()
 }
 
+fn x_char<'a>() -> Parser<'a, char, char> {
+    // parse '\xFF'
+    let hex = one_of("0123456789abcdefABCDEF");
+    let ch =  one_of("xX") * hex.repeat(2).map(String::from_iter);
+    ch.convert(|s| u32::from_str_radix(&s, 16))
+        .convert(|n| std::char::from_u32(n)
+            // .and_then(|x| if x.is_ascii_graphic() { Some(x) } else { None })
+            .ok_or("not a valid unicode")
+        )
+}
+
 fn json_unicode<'a>() -> Parser<'a, char, char> {
     let hex = one_of("0123456789abcdefABCDEF");
     let ch = sym('u') * hex.repeat(4).map(String::from_iter);
@@ -51,7 +62,7 @@ fn json_unicode<'a>() -> Parser<'a, char, char> {
 }
 
 fn special_char<'a>() -> Parser<'a, char, char> {
-    json_unicode() | sym('\\') | sym('/') | sym('"')
+    json_unicode() | x_char() | sym('\\') | sym('/') | sym('"')
         | sym('b').map(|_|'\x08') | sym('f').map(|_|'\x0C')
         | sym('n').map(|_|'\n') | sym('r').map(|_|'\r') | sym('t').map(|_|'\t')
 }
@@ -69,9 +80,16 @@ fn qstring<'a>() -> Parser<'a, char, (char, String)> {
 }
 
 fn string<'a>() -> Parser<'a, char, KrasValue> {
-    let string = qqstring() | qstring();
+    // TODO if \x | \u char is not printable - keep it as is ('\x00')
+    
+    fn alpha<'a>() -> Parser<'a, char, String> {
+        let is_alpha = is_a(|c: char| c.is_alphabetic());
+        is_alpha.repeat(0..).collect().map(String::from_iter)
+    }
 
-    string.map(|(a, b)| KrasValue::Str((a, b)))
+    let string = alpha() + (qqstring() | qstring());
+
+    string.map(|(p, (q, s))| KrasValue::Str((q, p, s)))
 }
 
 fn pair_delim<'a>() -> Parser<'a, char, String> {
@@ -126,7 +144,7 @@ struct RecursiveStringParser(bool);
 
 impl KrasVisitor for RecursiveStringParser {
     fn visit_str(&self, val: &mut KrasValue) {
-        if let KrasValue::Str((_, ref s)) = val {
+        if let KrasValue::Str((_, _, ref s)) = val {
             let mut inner = parse_str(s, self.0, true);
             debug!("rec parse: {:?}", inner);
             if let KrasValue::RawList(ref mut items) = inner {
@@ -222,7 +240,19 @@ mod test {
                     ), None))
                 ],
                 "}".to_string()))
-             ),
+            ),
+            (r#"b''"#, KrasValue::Str(('\'', "b".to_string(), "".to_string()))),
+            ("{a=>b''}", KrasValue::List(("{".to_string(), 
+                vec![
+                    KrasValue::ListItem((Box::new(
+                        KrasValue::Ident("a".to_string()),
+                    ), Some("=>".to_string()))),
+                    KrasValue::ListItem((Box::new(
+                        KrasValue::Str(('\'', "b".to_string(), "".to_string())),
+                    ), None))
+                ],
+                "}".to_string()))
+            )
         ];
         for (input, expected) in tests {
             let input = input.chars().collect::<Vec<_>>();
@@ -234,8 +264,8 @@ mod test {
     #[test]
     fn test_unicode() {
         let tests = vec![
-            (r#"["\u044f"]"#, KrasValue::Str(('"', "я".to_string()))),
-            (r#"["\u044f2"]"#, KrasValue::Str(('"', "я2".to_string()))),
+            (r#"["\u044f"]"#, KrasValue::Str(('"', "".to_string(), "я".to_string()))),
+            (r#"["\u044f2"]"#, KrasValue::Str(('"', "".to_string(), "я2".to_string()))),
         ];
         for (input, expected) in tests {
             check_single_value(&input, &expected);
