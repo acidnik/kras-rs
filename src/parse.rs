@@ -62,7 +62,7 @@ fn json_unicode<'a>() -> Parser<'a, char, char> {
 }
 
 fn special_char<'a>() -> Parser<'a, char, char> {
-    json_unicode() | x_char() | sym('\\') | sym('/') | sym('"')
+    json_unicode() | x_char() | sym('\\') | sym('/') | sym('"') | sym('\'')
         | sym('b').map(|_|'\x08') | sym('f').map(|_|'\x0C')
         | sym('n').map(|_|'\n') | sym('r').map(|_|'\r') | sym('t').map(|_|'\t')
 }
