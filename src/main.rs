@@ -32,7 +32,7 @@ extern crate pretty;
 
 extern crate num_cpus;
 
-use crossbeam::crossbeam_channel::bounded;
+use crossbeam::channel::bounded;
 use pretty::termcolor::ColorChoice;
 
 mod detect;

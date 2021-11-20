@@ -1,6 +1,6 @@
 use std::{cmp::Reverse, collections::BinaryHeap, io::Write, thread::JoinHandle};
 
-use crossbeam::crossbeam_channel::Receiver;
+use crossbeam::channel::Receiver;
 
 /*
 This object consumes lines from several threads. Each message is a

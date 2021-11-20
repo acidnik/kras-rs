@@ -1,6 +1,6 @@
 [package]
 name = "kras"
-version = "0.3.4"
+version = "0.3.5"
 authors = ["Nikita Bilous <nikita@bilous.me>"]
 edition = "2021"
 
@@ -15,21 +15,21 @@ description = "Detect, highlight and pretty print almost any structured data ins
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-clap = '2.33.0'
+clap = "2.33.3"
 fileinput = "0.3.0"
-pom = '3.1.0'
-termcolor = '1.1.0'
-atty = '0.2.14'
-log = '0.4.8'
-env_logger = '0.7.1'
-chrono = '0.4.11'
-crossbeam = '0.7.3'
-num_cpus = '1.13.0'
+pom = "3.2.0"
+termcolor = "1.1.2"
+atty = "0.2.14"
+log = "0.4.14"
+env_logger = "0.9.0"
+chrono = "0.4.19"
+crossbeam = "0.8.1"
+num_cpus = "1.13.0"
 
 [dev-dependencies]
-rand = '0.7.3'
+rand = "0.8.4"
 permutator = "0.4.0"
 
 [dependencies.pretty]
 features = ['termcolor']
-version = '0.10.0'
+version = "0.10.0"
