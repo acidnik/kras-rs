@@ -1,5 +1,7 @@
-use std::cmp::Ordering;
-use std::collections::{HashMap, BinaryHeap};
+use std::{
+    cmp::Ordering,
+    collections::{BinaryHeap, HashMap},
+};
 
 use crate::stopwatch::Stopwatch;
 
@@ -20,7 +22,7 @@ signatures:
 (0 0 [) => 0
 (1 1 [) => 1
 
-current signature is also (1 1 [) 
+current signature is also (1 1 [)
 so the current best candidate for valid data starts at position 1
 
 put the (start, end, length) of candidate to priority queue, sorted by length
@@ -48,8 +50,7 @@ impl PartialEq for CharPosition {
     }
 }
 
-impl Eq for CharPosition {
-}
+impl Eq for CharPosition {}
 
 impl PartialOrd for CharPosition {
     fn partial_cmp(&self, other: &CharPosition) -> Option<Ordering> {
@@ -61,7 +62,7 @@ pub struct DetectDataIter<'a> {
     input: &'a [char],
     start: usize,
     // queue of best possible matches
-    pq: BinaryHeap<CharPosition>,
+    pq:    BinaryHeap<CharPosition>,
 }
 
 impl<'a> DetectDataIter<'a> {
@@ -88,7 +89,7 @@ pub fn get_open(c: char) -> char {
         ']' => '[',
         '}' => '{',
         '>' => '<',
-        _ => panic!("wrong close char {:?}", c)
+        _ => panic!("wrong close char {:?}", c),
     }
 }
 
@@ -99,7 +100,7 @@ fn get_close(c: char) -> char {
         '[' => ']',
         '{' => '}',
         '<' => '>',
-        _ => panic!("wrong open char {:?}", c)
+        _ => panic!("wrong open char {:?}", c),
     }
 }
 
@@ -109,7 +110,7 @@ impl<'a> Iterator for DetectDataIter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         if self.start >= self.input.len() {
             // trace!("out: {} >= {}", self.start, self.input.len());
-            return None
+            return None;
         }
         let _stopwatch = Stopwatch::new("detect", 0);
         // balance (open-close) of each bracket
@@ -144,7 +145,7 @@ impl<'a> Iterator for DetectDataIter<'a> {
                 }
             }
             if str_char.is_some() {
-                continue
+                continue;
             }
             if is_open(c) {
                 let cnt = cnt_each.entry(c).or_insert(0);
@@ -153,7 +154,7 @@ impl<'a> Iterator for DetectDataIter<'a> {
                 all_cnt += 1;
                 // trace!("open {:?}: {} {} {:?}", c, all_cnt, cnt, sign_pos);
             }
-            else if is_close(c) && (c != '>' || idx == 0 || self.input[idx-1] != '=') {
+            else if is_close(c) && (c != '>' || idx == 0 || self.input[idx - 1] != '=') {
                 // hack: do not treat '=>' as a part of a bracket sequence
                 let op = get_open(c);
                 // trace!("cnt_each = {:?}; all_cnt = {}", cnt_each, all_cnt);
@@ -161,7 +162,7 @@ impl<'a> Iterator for DetectDataIter<'a> {
                 all_cnt -= 1;
                 *cnt -= 1;
                 if let Some(pos) = sign_pos.get(&(*cnt, all_cnt, op)) {
-                    self.pq.push(CharPosition(*pos, idx, idx-pos));
+                    self.pq.push(CharPosition(*pos, idx, idx - pos));
                 }
                 // trace!("at close {:?} ||: get {:?} {:?}", c, (*cnt, all_cnt), sign_pos);
             }
@@ -173,10 +174,10 @@ impl<'a> Iterator for DetectDataIter<'a> {
             let (start, end) = (pos.0, pos.1);
             if start < self.start {
                 // trace!("at end: pos {:?} SKIP", pos);
-                continue
+                continue;
             }
             self.start = end + 1;
-            return Some((start, &self.input[start .. end+1]))
+            return Some((start, &self.input[start..end + 1]));
         }
         None
     }
@@ -188,12 +189,15 @@ mod test {
         let _ = env_logger::builder().is_test(true).try_init();
     }
 
-    use std::collections::VecDeque;
-    use std::collections::HashSet;
+    use std::{
+        collections::{HashSet, VecDeque},
+        iter::FromIterator,
+    };
+
     use permutator::XPermutationIterator;
-    use super::*;
-    use std::iter::FromIterator;
     use rand::prelude::*;
+
+    use super::*;
 
     #[test]
     fn test_detect() -> () {
@@ -212,7 +216,10 @@ mod test {
             ("", vec![]),
             (") [{}]", vec![(2, "[{}]")]),
             (r#"[ "]" ]"#, vec![(0, r#"[ "]" ]"#)]),
-            (r#""a": {"b": 1 }, "c": {"d": "e", }"#, vec![(5, r#"{"b": 1 }"#), (21, r#"{"d": "e", }"#)]),
+            (
+                r#""a": {"b": 1 }, "c": {"d": "e", }"#,
+                vec![(5, r#"{"b": 1 }"#), (21, r#"{"d": "e", }"#)],
+            ),
             ("{}{a:b}", vec![(0, "{}"), (2, "{a:b}")]),
             // fuck
             // ("[1, 2, 3] {[} (4, 5, 6) ]", vec![(0, "[1, 2, 3]"), (14, "(4, 5, 6)")]),
@@ -237,13 +244,13 @@ mod test {
         let mut i = 0;
         'start: while i < s.len() {
             let a = s[i];
-            if ! is_open(a) {
+            if !is_open(a) {
                 i += 1;
                 continue;
             }
             let mut q = VecDeque::<char>::new();
             q.push_back(a);
-            for j in i+1 .. s.len() {
+            for j in i + 1..s.len() {
                 let b = s[j];
                 if is_open(b) {
                     q.push_back(b);
@@ -257,12 +264,12 @@ mod test {
                 let x = q.pop_back().unwrap();
                 if get_close(x) != b {
                     i += 1;
-                    continue 'start
+                    continue 'start;
                 }
 
                 if q.is_empty() {
                     let r = String::from_iter(s[i..=j].iter());
-                    i = j+1;
+                    i = j + 1;
                     res.push(r);
                     continue 'start;
                 }
@@ -271,7 +278,7 @@ mod test {
         }
         res
     }
-    
+
     // gotta be sure
     // #[test]
     fn test_dumb() {
@@ -315,7 +322,7 @@ mod test {
             // assert_eq!(res, expected);
         }
         _t.stop();
-        
+
         let mut _t = Stopwatch::new("smart", 10);
         for t in tests {
             let input = t.chars().collect::<Vec<_>>();
@@ -329,4 +336,3 @@ mod test {
         _t.stop();
     }
 }
-

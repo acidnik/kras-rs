@@ -1,12 +1,12 @@
-use std::{cmp::Reverse, collections::BinaryHeap, thread::{JoinHandle}};
+use std::{cmp::Reverse, collections::BinaryHeap, io::Write, thread::JoinHandle};
+
 use crossbeam::crossbeam_channel::Receiver;
-use std::io::Write;
 
 /*
 This object consumes lines from several threads. Each message is a
 (line_number, String)
 Messages are consumed in random order and put to a priority queue
-When the line number at top of the queue equals to next_line_num - 
+When the line number at top of the queue equals to next_line_num -
 it is popped from the queue and printed
 */
 
@@ -46,13 +46,11 @@ impl Printer {
             while let Some(Reverse((_, line))) = output_queue.pop() {
                 writeln!(stdout, "{}", line).unwrap();
             }
-            debug!("max queue len = {max_qlen}", max_qlen=max_qlen)
-
+            debug!("max queue len = {max_qlen}", max_qlen = max_qlen)
         });
-        Printer {
-            thread: thread,
-        }
+        Printer { thread: thread }
     }
+
     pub fn join(self) {
         self.thread.join().expect("join failed")
     }

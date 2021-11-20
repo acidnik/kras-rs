@@ -12,9 +12,9 @@ impl Stopwatch {
         let name = name.into();
         Stopwatch {
             name,
-            start:    time::Instant::now(),
+            start: time::Instant::now(),
             treshold: treshold_ms * 1_000_000,
-            stopped:  false,
+            stopped: false,
         }
     }
     pub fn stop(&mut self) {

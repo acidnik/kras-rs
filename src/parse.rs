@@ -1,16 +1,14 @@
-use crate::detect2::DetectDataV2;
-use std::iter::FromIterator;
-use std::str::FromStr;
+use std::{iter::FromIterator, str::FromStr};
 
 use pom::parser::*;
 
-use crate::{detect::DetectDataIter, pretty_value::*, stopwatch::Stopwatch};
+use crate::{detect::DetectDataIter, detect2::DetectDataV2, pretty_value::*, stopwatch::Stopwatch};
 
 fn space<'a>() -> Parser<'a, char, ()> {
     one_of(" \t\r\n").repeat(0..).discard()
 }
 
-fn ident<'a>() -> Parser<'a, char, String> { 
+fn ident<'a>() -> Parser<'a, char, String> {
     let first = is_a(|c: char| c.is_alphabetic()) | one_of("_%$@\\/");
 
     fn alnum<'a>() -> Parser<'a, char, String> {
@@ -21,7 +19,7 @@ fn ident<'a>() -> Parser<'a, char, String> {
 
     // [a-z] [a-z0-9]* ([:.]+[a-z0-9]+)*
     let ident = first + alnum().repeat(0..) + (dot.repeat(1..) + alnum().repeat(1..)).repeat(0..);
-    
+
     ident.collect().map(String::from_iter) - space()
 }
 
@@ -31,7 +29,7 @@ fn plain_number<'a>() -> Parser<'a, char, (f64, String)> {
     let exp = one_of("eE") + one_of("+-").opt() + one_of("0123456789").repeat(1..);
     let number = sym('-').opt() + integer + frac.opt() + exp.opt();
     let repr = number.collect().map(String::from_iter);
-    repr.convert(|s| f64::from_str(&s).map(|n| (n, s)) )
+    repr.convert(|s| f64::from_str(&s).map(|n| (n, s)))
 }
 
 fn hex_number<'a>() -> Parser<'a, char, (f64, String)> {
@@ -48,24 +46,33 @@ fn number<'a>() -> Parser<'a, char, (f64, String)> {
 fn x_char<'a>() -> Parser<'a, char, char> {
     // parse '\xFF'
     let hex = one_of("0123456789abcdefABCDEF");
-    let ch =  one_of("xX") * hex.repeat(2).map(String::from_iter);
-    ch.convert(|s| u32::from_str_radix(&s, 16))
-        .convert(|n| std::char::from_u32(n)
+    let ch = one_of("xX") * hex.repeat(2).map(String::from_iter);
+    ch.convert(|s| u32::from_str_radix(&s, 16)).convert(|n| {
+        std::char::from_u32(n)
             // .and_then(|x| if x.is_ascii_graphic() { Some(x) } else { None })
             .ok_or("not a valid unicode")
-        )
+    })
 }
 
 fn json_unicode<'a>() -> Parser<'a, char, char> {
     let hex = one_of("0123456789abcdefABCDEF");
     let ch = sym('u') * hex.repeat(4).map(String::from_iter);
-    ch.convert(|s| u32::from_str_radix(&s, 16)).convert(|n| std::char::from_u32(n).ok_or("not a valid unicode"))
+    ch.convert(|s| u32::from_str_radix(&s, 16))
+        .convert(|n| std::char::from_u32(n).ok_or("not a valid unicode"))
 }
 
 fn special_char<'a>() -> Parser<'a, char, char> {
-    json_unicode() | x_char() | sym('\\') | sym('/') | sym('"') | sym('\'')
-        | sym('b').map(|_|'\x08') | sym('f').map(|_|'\x0C')
-        | sym('n').map(|_|'\n') | sym('r').map(|_|'\r') | sym('t').map(|_|'\t')
+    json_unicode()
+        | x_char()
+        | sym('\\')
+        | sym('/')
+        | sym('"')
+        | sym('\'')
+        | sym('b').map(|_| '\x08')
+        | sym('f').map(|_| '\x0C')
+        | sym('n').map(|_| '\n')
+        | sym('r').map(|_| '\r')
+        | sym('t').map(|_| '\t')
 }
 
 fn qqstring<'a>() -> Parser<'a, char, (char, String)> {
@@ -82,7 +89,7 @@ fn qstring<'a>() -> Parser<'a, char, (char, String)> {
 
 fn string<'a>() -> Parser<'a, char, KrasValue> {
     // TODO if \x | \u char is not printable - keep it as is ('\x00')
-    
+
     fn alpha<'a>() -> Parser<'a, char, String> {
         let is_alpha = is_a(|c: char| c.is_alphabetic());
         is_alpha.repeat(0..).collect().map(String::from_iter)
@@ -94,7 +101,7 @@ fn string<'a>() -> Parser<'a, char, KrasValue> {
 }
 
 fn pair_delim<'a>() -> Parser<'a, char, String> {
-    let delim = space() * (seq(&[':']) | seq(&['=','>']) | seq(&['='])) - space();
+    let delim = space() * (seq(&[':']) | seq(&['=', '>']) | seq(&['='])) - space();
     delim.map(String::from_iter)
 }
 
@@ -115,7 +122,7 @@ fn array<'a>() -> Parser<'a, char, (String, Vec<KrasValue>, String)> {
     let set = sym('{') + space() * list_item().repeat(0..) + sym('}');
     let tup = sym('(') + space() * list_item().repeat(0..) + sym(')');
     let ang = sym('<') + space() * list_item().repeat(0..) + sym('>');
-    (arr | set | tup | ang).map(|((a, b), c)| (a.to_string(), b, c.to_string() ))
+    (arr | set | tup | ang).map(|((a, b), c)| (a.to_string(), b, c.to_string()))
 }
 
 fn constructor<'a>() -> Parser<'a, char, KrasValue> {
@@ -128,12 +135,11 @@ fn inner_value<'a>() -> Parser<'a, char, KrasValue> {
 }
 
 fn value<'a>() -> Parser<'a, char, KrasValue> {
-    (
-        string()
+    (string()
         | number().map(|(n, r)| KrasValue::Num(OrdF64(n, r)))
         | constructor()
-        | array().map(|(s, arr, c)| KrasValue::List((s, arr, c)))
-    ) - space()
+        | array().map(|(s, arr, c)| KrasValue::List((s, arr, c))))
+        - space()
 }
 
 pub fn kras<'a>() -> Parser<'a, char, KrasValue> {
@@ -167,12 +173,11 @@ impl KrasVisitor for RecursiveStringParser {
     }
 }
 
-
 pub fn parse_str(s: &str, sort: bool, recursive: bool, robust: bool) -> KrasValue {
     let mut res = Vec::new();
     let buf = s.chars().collect::<Vec<_>>();
     let mut start = 0;
-    let iter: Box<dyn Iterator<Item=(usize, &[char])>> = if robust {
+    let iter: Box<dyn Iterator<Item = (usize, &[char])>> = if robust {
         Box::new(DetectDataIter::new(&buf))
     }
     else {
@@ -220,14 +225,15 @@ mod test {
 
     // fn check_single_value_with(input: &str, expected: &KrasValue, cmp_with: Fn(&KrasValue, &KrasValue) -> bool) { // ? this looks like the same thing but does not compiles
     fn check_single_value_with<F>(input: &str, expected: &KrasValue, cmp_with: F)
-        where F: Fn(&KrasValue, &KrasValue) -> bool
+    where
+        F: Fn(&KrasValue, &KrasValue) -> bool,
     {
         let input = input.chars().collect::<Vec<_>>();
         let res = kras().parse(&input);
         if let Ok(KrasValue::List((_, ref res, _))) = res {
             if let Some(KrasValue::ListItem((item, _))) = res.get(0) {
                 assert!(cmp_with(&item, &expected), "{:?} != {:?}", **item, *expected);
-                return
+                return;
             }
         }
         assert!(false, "{:?} != {:?}", res, expected);
@@ -237,28 +243,28 @@ mod test {
     fn test_kras() -> () {
         let tests = vec![
             ("{}", KrasValue::List(("{".to_string(), vec![], "}".to_string()))),
-            ("{a=>b}", KrasValue::List(("{".to_string(), 
-                vec![
-                    KrasValue::ListItem((Box::new(
-                        KrasValue::Ident("a".to_string()),
-                    ), Some("=>".to_string()))),
-                    KrasValue::ListItem((Box::new(
-                        KrasValue::Ident("b".to_string()),
-                    ), None))
-                ],
-                "}".to_string()))
+            (
+                "{a=>b}",
+                KrasValue::List((
+                    "{".to_string(),
+                    vec![
+                        KrasValue::ListItem((Box::new(KrasValue::Ident("a".to_string())), Some("=>".to_string()))),
+                        KrasValue::ListItem((Box::new(KrasValue::Ident("b".to_string())), None)),
+                    ],
+                    "}".to_string(),
+                )),
             ),
             (r#"b''"#, KrasValue::Str(('\'', "b".to_string(), "".to_string()))),
-            ("{a=>b''}", KrasValue::List(("{".to_string(), 
-                vec![
-                    KrasValue::ListItem((Box::new(
-                        KrasValue::Ident("a".to_string()),
-                    ), Some("=>".to_string()))),
-                    KrasValue::ListItem((Box::new(
-                        KrasValue::Str(('\'', "b".to_string(), "".to_string())),
-                    ), None))
-                ],
-                "}".to_string()))
+            (
+                "{a=>b''}",
+                KrasValue::List((
+                    "{".to_string(),
+                    vec![
+                        KrasValue::ListItem((Box::new(KrasValue::Ident("a".to_string())), Some("=>".to_string()))),
+                        KrasValue::ListItem((Box::new(KrasValue::Str(('\'', "b".to_string(), "".to_string()))), None)),
+                    ],
+                    "}".to_string(),
+                )),
             ),
         ];
         for (input, expected) in tests {
@@ -272,7 +278,10 @@ mod test {
     fn test_unicode() {
         let tests = vec![
             (r#"["\u044f"]"#, KrasValue::Str(('"', "".to_string(), "я".to_string()))),
-            (r#"["\u044f2"]"#, KrasValue::Str(('"', "".to_string(), "я2".to_string()))),
+            (
+                r#"["\u044f2"]"#,
+                KrasValue::Str(('"', "".to_string(), "я2".to_string())),
+            ),
         ];
         for (input, expected) in tests {
             check_single_value(&input, &expected);
@@ -286,8 +295,14 @@ mod test {
             ("[123]", KrasValue::Num(OrdF64(123.0, "123".to_string()))),
             ("[0.123]", KrasValue::Num(OrdF64(0.123, "0.123".to_string()))),
             ("[0x1]", KrasValue::Num(OrdF64(1.0, "0x1".to_string()))),
-            ("[0xdeadbeef]", KrasValue::Num(OrdF64(3735928559.0, "0xdeadbeef".to_string()))),
-            ("[0x7f1bcd0b0d40]", KrasValue::Num(OrdF64(139757380898112.0, "0x7f1bcd0b0d40".to_string()))),
+            (
+                "[0xdeadbeef]",
+                KrasValue::Num(OrdF64(3735928559.0, "0xdeadbeef".to_string())),
+            ),
+            (
+                "[0x7f1bcd0b0d40]",
+                KrasValue::Num(OrdF64(139757380898112.0, "0x7f1bcd0b0d40".to_string())),
+            ),
         ];
         for (input, expected) in tests {
             check_single_value_with(&input, &expected, |a, b| {
@@ -302,7 +317,7 @@ mod test {
                         assert_eq!(u64::from_str_radix(&sa, radix).unwrap() as f64, *fa);
                     }
                     if let KrasValue::Num(OrdF64(fb, sb)) = b {
-                        return fa == fb && sa == sb
+                        return fa == fb && sa == sb;
                     }
                 }
                 assert!(false, "invalid types: {:?} {:?}", a, b);
