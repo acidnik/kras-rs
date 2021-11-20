@@ -1,5 +1,6 @@
 // disable some warnings for debug build
 #![cfg_attr(debug_assertions, allow(dead_code, unused_imports, unused_mut, unused_variables, unreachable_code))]
+#![allow(clippy::redundant_field_names)]
 
 use std::io::{BufReader, Read};
 use std::io::BufRead;
@@ -34,6 +35,7 @@ use crossbeam::crossbeam_channel::bounded;
 use pretty::termcolor::ColorChoice;
 
 mod detect;
+mod detect2;
 
 mod pretty_value;
 
@@ -95,6 +97,10 @@ fn main() {
             .long("multiline")
             .help("look for data spanning several lines. This will read whole input to memory")
         )
+        .arg(Arg::with_name("robust")
+            .long("robust")
+            .help("use more robust, but slower method to detect structured data")
+        )
         .arg(Arg::with_name("debug")
             .long("debug")
             .help("debug mode")
@@ -138,6 +144,8 @@ fn main() {
                 None => num_cpus::get(),
             }
         };
+        
+    let robust = matches.is_present("robust");
 
     // ---- done parsing arguments. prepare to read from files
 
@@ -156,7 +164,7 @@ fn main() {
         let output_sender = output_sender.clone();
         thread::spawn(move || {
             while let Ok((i, s)) = input_receiver.recv() {
-                let line = parse_str(&s, sort, recursive);
+                let line = parse_str(&s, sort, recursive, robust);
                 debug!("line = {:?}", line);
                 let rendered_str = line.render(indent, min_len, color_choice);
                 output_sender.send((i, rendered_str)).expect("send");

@@ -1,8 +1,8 @@
 [package]
 name = "kras"
-version = "0.3.3"
+version = "0.3.4"
 authors = ["Nikita Bilous <nikita@bilous.me>"]
-edition = "2018"
+edition = "2021"
 
 license = "MIT"
 keywords = ["pretty", "log", "parse"]
@@ -28,6 +28,7 @@ num_cpus = '1.13.0'
 
 [dev-dependencies]
 rand = '0.7.3'
+permutator = "0.4.0"
 
 [dependencies.pretty]
 features = ['termcolor']

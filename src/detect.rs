@@ -38,7 +38,7 @@ struct CharPosition(usize, usize, usize);
 
 impl Ord for CharPosition {
     fn cmp(&self, other: &CharPosition) -> Ordering {
-        self.2.cmp(&other.2)
+        (usize::MAX - self.0, self.2).cmp(&(usize::MAX - other.0, other.2))
     }
 }
 
@@ -60,35 +60,35 @@ impl PartialOrd for CharPosition {
 pub struct DetectDataIter<'a> {
     input: &'a [char],
     start: usize,
-    recursive: bool,
+    // queue of best possible matches
+    pq: BinaryHeap<CharPosition>,
 }
 
 impl<'a> DetectDataIter<'a> {
-    pub fn new(input: &'a [char], recursive: bool) -> Self {
+    pub fn new(input: &'a [char]) -> Self {
         DetectDataIter {
             input,
             start: 0,
-            recursive: recursive,
+            pq: BinaryHeap::<CharPosition>::new(),
         }
     }
 }
 
-
-fn is_open(c: char) -> bool {
+pub fn is_open(c: char) -> bool {
     c == '(' || c == '[' || c == '{' || c == '<'
 }
 
-fn is_close(c: char) -> bool {
+pub fn is_close(c: char) -> bool {
     c == ')' || c == ']' || c == '}' || c == '>'
 }
 
-fn get_open(c: char) -> char {
+pub fn get_open(c: char) -> char {
     match c {
         ')' => '(',
         ']' => '[',
         '}' => '{',
         '>' => '<',
-        _ => panic!(format!("wrong close char {:?}", c))
+        _ => panic!("wrong close char {:?}", c)
     }
 }
 
@@ -99,7 +99,7 @@ fn get_close(c: char) -> char {
         '[' => ']',
         '{' => '}',
         '<' => '>',
-        _ => panic!(format!("wrong open char {:?}", c))
+        _ => panic!("wrong open char {:?}", c)
     }
 }
 
@@ -108,6 +108,7 @@ impl<'a> Iterator for DetectDataIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.start >= self.input.len() {
+            // trace!("out: {} >= {}", self.start, self.input.len());
             return None
         }
         let _stopwatch = Stopwatch::new("detect", 0);
@@ -117,11 +118,9 @@ impl<'a> Iterator for DetectDataIter<'a> {
         let mut all_cnt = 0;
         // signature and position of signature
         let mut sign_pos = HashMap::<(isize, isize, char), usize>::new(); // (cnt, all_cnt, open_char) => pos
-        // queue of best possible matches
-        let mut pq = BinaryHeap::<CharPosition>::new();
         let mut escape = false;
         let mut str_char: Option<char> = None;
-        // println!("begin {}", self.start);
+        // trace!("begin {}", self.start);
 
         for (idx, c) in self.input[self.start..].iter().enumerate() {
             let idx = idx + self.start;
@@ -145,62 +144,62 @@ impl<'a> Iterator for DetectDataIter<'a> {
                 }
             }
             if str_char.is_some() {
-                if ! self.recursive {
-                    continue;
-                }
+                continue
             }
             if is_open(c) {
                 let cnt = cnt_each.entry(c).or_insert(0);
-                let _prev = sign_pos.insert((*cnt, all_cnt, c), idx);
-                // if ! prev.is_none() {
-                //     println!("sing = {:?}", sign_pos);
-                //     println!("seen {:?} = {:?} at {}", (*cnt, all_cnt, c), prev, idx);
-                //     panic!("")
-                // }
+                sign_pos.insert((*cnt, all_cnt, c), idx);
                 *cnt += 1;
                 all_cnt += 1;
+                // trace!("open {:?}: {} {} {:?}", c, all_cnt, cnt, sign_pos);
             }
             else if is_close(c) && (c != '>' || idx == 0 || self.input[idx-1] != '=') {
                 // hack: do not treat '=>' as a part of a bracket sequence
                 let op = get_open(c);
-                // println!("cnt_each = {:?}; all_cnt = {}", cnt_each, all_cnt);
+                // trace!("cnt_each = {:?}; all_cnt = {}", cnt_each, all_cnt);
                 let cnt = cnt_each.entry(op).or_insert(0);
                 all_cnt -= 1;
                 *cnt -= 1;
-                if *cnt == 0 && all_cnt == 0 {
-                    if let Some(pos) = sign_pos.get(&(*cnt, all_cnt, op)) {
-                        self.start = idx + 1;
-                        // println!("end1 {}", idx+1);
-                        return Some((*pos, &self.input[*pos .. idx+1]));
-                    }
-                }
-                // println!("at close || {:?} ||: get {:?} {:?}", self.input, (*cnt, all_cnt), sign_pos);
                 if let Some(pos) = sign_pos.get(&(*cnt, all_cnt, op)) {
-                    pq.push(CharPosition(*pos, idx, idx-pos));
+                    self.pq.push(CharPosition(*pos, idx, idx-pos));
                 }
+                // trace!("at close {:?} ||: get {:?} {:?}", c, (*cnt, all_cnt), sign_pos);
             }
         }
-        // println!("at end: {:?}", pq);
+        // trace!("at end: {:?}", self.pq);
         // reached the end of str
-        if let Some(CharPosition(start, end, _)) = pq.pop() {
-            self.start = end+1;
-            // println!("end2 {}", end+1);
-            Some((start, &self.input[start .. end+1]))
+        while let Some(pos) = self.pq.pop() {
+            // trace!("at end: pop {:?}", pos);
+            let (start, end) = (pos.0, pos.1);
+            if start < self.start {
+                // trace!("at end: pos {:?} SKIP", pos);
+                continue
+            }
+            self.start = end + 1;
+            return Some((start, &self.input[start .. end+1]))
         }
-        else {
-            None
-        }
+        None
     }
 }
 
 #[cfg(test)]
 mod test {
+    fn init() {
+        let _ = env_logger::builder().is_test(true).try_init();
+    }
+
+    use std::collections::VecDeque;
+    use std::collections::HashSet;
+    use permutator::XPermutationIterator;
     use super::*;
     use std::iter::FromIterator;
     use rand::prelude::*;
+
     #[test]
     fn test_detect() -> () {
+        init();
         let cases = vec![
+            ("[{}]", vec![(0, "[{}]")]),
             ("[]", vec![(0, "[]")]),
             ("[[]", vec![(1, "[]")]),
             ("[{ [{}] ]", vec![(3, "[{}]")]),
@@ -211,66 +210,123 @@ mod test {
             ("{a=>b}", vec![(0, "{a=>b}")]),
             ("<class 'str'>", vec![(0, "<class 'str'>")]),
             ("", vec![]),
+            (") [{}]", vec![(2, "[{}]")]),
+            (r#"[ "]" ]"#, vec![(0, r#"[ "]" ]"#)]),
+            (r#""a": {"b": 1 }, "c": {"d": "e", }"#, vec![(5, r#"{"b": 1 }"#), (21, r#"{"d": "e", }"#)]),
+            ("{}{a:b}", vec![(0, "{}"), (2, "{a:b}")]),
+            // fuck
+            // ("[1, 2, 3] {[} (4, 5, 6) ]", vec![(0, "[1, 2, 3]"), (14, "(4, 5, 6)")]),
         ];
-        for (input, res) in cases {
-            let input = input.chars().collect::<Vec<_>>();
-            println!(">> '{}'", String::from_iter(input.iter()));
-            let d = DetectDataIter::new(&input, false).collect::<Vec<_>>();
-            println!("{:?}", d);
+        for (t, res) in cases {
+            let input = t.chars().collect::<Vec<_>>();
+            let d = DetectDataIter::new(&input).collect::<Vec<_>>();
+            // trace!("test: {} -> {:?}", t, d);
             assert_eq!(d.len(), res.len());
             for ((tn, t), (rn, r)) in res.iter().zip(d.iter()) {
-                assert_eq!(tn, rn);
                 assert_eq!(t.to_string(), String::from_iter(r.iter()));
+                assert_eq!(tn, rn);
             }
         }
     }
 
-    fn rnd_chars() -> Vec<char> {
-        let mut rng = thread_rng();
-        let num = rng.gen_range(0, 100);
-        let rc = vec!['(', '[', '{', ')', ']', '}', '<', '>', '='];
+    fn dumb(s: &str) -> Vec<String> {
+        // trace!("begin dumb {}", s);
         let mut res = Vec::new();
-        for _ in 0..num {
-            res.push(rc[rng.gen_range(0, rc.len())])
+        let s = s.chars().collect::<Vec<_>>();
+        // 'start: for i in 0..s.len() {
+        let mut i = 0;
+        'start: while i < s.len() {
+            let a = s[i];
+            if ! is_open(a) {
+                i += 1;
+                continue;
+            }
+            let mut q = VecDeque::<char>::new();
+            q.push_back(a);
+            for j in i+1 .. s.len() {
+                let b = s[j];
+                if is_open(b) {
+                    q.push_back(b);
+                    continue;
+                }
+                // b is close
+                if q.is_empty() {
+                    i += 1;
+                    continue 'start;
+                }
+                let x = q.pop_back().unwrap();
+                if get_close(x) != b {
+                    i += 1;
+                    continue 'start
+                }
+
+                if q.is_empty() {
+                    let r = String::from_iter(s[i..=j].iter());
+                    i = j+1;
+                    res.push(r);
+                    continue 'start;
+                }
+            }
+            i += 1
         }
         res
     }
+    
+    // gotta be sure
+    // #[test]
+    fn test_dumb() {
+        init();
 
-    fn valid_chars() -> Vec<char> {
-        let mut rng = thread_rng();
-        let mut res = Vec::new();
-        let mut stack = Vec::new();
-        let rc = vec!['(', '[', '{', '<'];
-        for _ in 0..rng.gen_range(1, 500) {
-            let c = rc[rng.gen_range(0, 3)];
-            res.push(c); // [{{}}{}
-            stack.push(c);
-            if rng.gen_range(0, 100) < 30 {
-                let op = stack.pop().unwrap();
-                res.push(get_close(op))
-            }
+        let tests = [
+            ("[{}]", vec![("[{}]")]),
+            ("[]", vec![("[]")]),
+            ("[[]", vec![("[]")]),
+            ("[{[{}]]", vec![("[{}]")]),
+            ("[[]][{}]", vec![("[[]]"), ("[{}]")]),
+            ("{>}", vec![]),
+            (")[{}]", vec![("[{}]")]),
+            ("{}{}", vec![("{}"), ("{}")]),
+            ("[}{]", vec![]),
+        ];
+        for (t, exp) in tests {
+            let res = dumb(t);
+            assert_eq!(res, exp);
         }
-        while let Some(op) = stack.pop() {
-            res.push(get_close(op))
-        }
-        res
     }
 
     // #[test]
-    fn test_fuzzy() -> () {
-        let iters = 1000;
-        for _ in 0..iters {
-            let mut pre_chars = rnd_chars();
-            let mut mid_chars = valid_chars();
-            let mut last_chars = rnd_chars();
-            let mut input = Vec::new();
-            input.append(&mut pre_chars);
-            input.append(&mut mid_chars);
-            input.append(&mut last_chars);
-            println!("BEGIN {:?}", String::from_iter(input.iter()));
-            let d = DetectDataIter::new(&input, false).collect::<Vec<_>>();
-            assert!(d.len() >= 1);
+    fn test_each() {
+        init();
+
+        let mut chars = b"[]{}[]<>".iter().collect::<Vec<_>>();
+        let combinations = XPermutationIterator::new(&mut chars, |_| true);
+        let mut tests = HashSet::<String>::new();
+        for c in combinations {
+            tests.insert(String::from_utf8(c.iter().map(|i| ***i).collect()).unwrap());
         }
+        let mut _t = Stopwatch::new("dumb", 10);
+        for t in &tests {
+            let input = t.chars().collect::<Vec<_>>();
+            let expected = dumb(&t);
+            // let res = DetectDataIter::new(&input, false).map(|s| String::from_iter(s.1)).collect::<Vec<_>>();
+            // if res.len() < expected.len() {
+            //     trace!("XXX from {:?} res={:?} # expected={:?}", t, res, expected);
+            // }
+            // assert_eq!(res, expected);
+        }
+        _t.stop();
+        
+        let mut _t = Stopwatch::new("smart", 10);
+        for t in tests {
+            let input = t.chars().collect::<Vec<_>>();
+            let expected = dumb(&t);
+            // let res = DetectDataIter::new(&input, false).map(|s| String::from_iter(s.1)).collect::<Vec<_>>();
+            // if res.len() < expected.len() {
+            //     trace!("XXX from {:?} res={:?} # expected={:?}", t, res, expected);
+            // }
+            // assert_eq!(res, expected);
+        }
+        _t.stop();
     }
 }
 

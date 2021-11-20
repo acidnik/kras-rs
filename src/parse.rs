@@ -1,3 +1,4 @@
+use crate::detect2::DetectDataV2;
 use std::iter::FromIterator;
 use std::str::FromStr;
 
@@ -139,13 +140,13 @@ pub fn kras<'a>() -> Parser<'a, char, KrasValue> {
     space() * value() - end()
 }
 
-// bool sort
-struct RecursiveStringParser(bool);
+// bool sort, bool robust
+struct RecursiveStringParser(bool, bool);
 
 impl KrasVisitor for RecursiveStringParser {
     fn visit_str(&self, val: &mut KrasValue) {
         if let KrasValue::Str((_, _, ref s)) = val {
-            let mut inner = parse_str(s, self.0, true);
+            let mut inner = parse_str(s, self.0, true, self.1);
             debug!("rec parse: {:?}", inner);
             if let KrasValue::RawList(ref mut items) = inner {
                 if items.len() == 1 {
@@ -167,11 +168,17 @@ impl KrasVisitor for RecursiveStringParser {
 }
 
 
-pub fn parse_str(s: &str, sort: bool, recursive: bool) -> KrasValue {
+pub fn parse_str(s: &str, sort: bool, recursive: bool, robust: bool) -> KrasValue {
     let mut res = Vec::new();
     let buf = s.chars().collect::<Vec<_>>();
     let mut start = 0;
-    for (pos, data) in DetectDataIter::new(&buf, recursive) {
+    let iter: Box<dyn Iterator<Item=(usize, &[char])>> = if robust {
+        Box::new(DetectDataIter::new(&buf))
+    }
+    else {
+        Box::new(DetectDataV2::new(&buf))
+    };
+    for (pos, data) in iter {
         debug!("DETECT: {}", String::from_iter(data));
         let mut stopwatch = Stopwatch::new("parse", 0);
         let r = kras().parse(data);
@@ -185,7 +192,7 @@ pub fn parse_str(s: &str, sort: bool, recursive: bool) -> KrasValue {
             let mut stopwatch = Stopwatch::new("postprocess", 0);
             r.postprocess(sort);
             if recursive {
-                let rec_parser = RecursiveStringParser(sort);
+                let rec_parser = RecursiveStringParser(sort, robust);
                 r.visit(&rec_parser)
             }
             stopwatch.stop();
@@ -252,7 +259,7 @@ mod test {
                     ), None))
                 ],
                 "}".to_string()))
-            )
+            ),
         ];
         for (input, expected) in tests {
             let input = input.chars().collect::<Vec<_>>();

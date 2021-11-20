@@ -26,7 +26,7 @@ impl Stopwatch {
         if elapsed.as_secs() == 0 && elapsed.subsec_nanos() < (self.treshold as u32) {
             return;
         }
-        debug!("<STOPWATCH> {}: {:?}", self.name, elapsed);
+        debug!("<STOPWATCH> {}: {:?}", self.name, elapsed.as_nanos());
     }
 }
 
