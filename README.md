@@ -23,13 +23,16 @@ FLAGS:
         --debug          debug mode
     -C, --force-color    alias for --color yes
     -h, --help           Prints help information
-    -s, --sort           sort keys
+    -m, --multiline      look for data spanning several lines. This will read whole input to memory
     -r, --recursive      try to parse nested strings
+        --robust         use more robust, but slower method to detect structured data
+    -s, --sort           sort keys
     -V, --version        Prints version information
 
 OPTIONS:
     -c, --color <color>      colorize output [default: auto]  [possible values: yes, no, auto]
     -i, --indent <indent>    indentation. 0 to disable (colorization is stil performed) [default: 2]
+    -j <jobs>                number of parallel jobs. Default is num_cpus
     -w, --width <width>      maximum width of output [default: 80]
 
 ARGS:
