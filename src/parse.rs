@@ -155,7 +155,11 @@ impl KrasVisitor for RecursiveStringParser {
             let mut inner = parse_str(s, self.0, true, self.1);
             debug!("rec parse: {:?}", inner);
             if let KrasValue::RawList(ref mut items) = inner {
-                if items.len() == 1 {
+                if items.len() == 0 {
+                    // parset Str("") as RawList([])
+                    // do nothing and keep the val as is
+                }
+                else if items.len() == 1 {
                     let single_val = items.pop().unwrap();
                     if let KrasValue::RawStr(_) = single_val {
                         // parsed Str("a b c") as RawStr("a b c").
@@ -237,6 +241,31 @@ mod test {
             }
         }
         assert!(false, "{:?} != {:?}", res, expected);
+    }
+    
+    #[test]
+    fn test_parse_str() {
+        let tests = vec![
+            (
+                r#"{x:""}"#,
+                KrasValue::RawList(vec![
+                    KrasValue::List((
+                        "{".to_string(),
+                        vec![KrasValue::Pair((
+                            Box::new(KrasValue::Ident("x".to_string())),
+                            ":".to_string(),
+                            Box::new(KrasValue::Str(('"', "".to_string(), "".to_string()))),
+                            None,
+                        ))],
+                        "}".to_string(),
+                    )),
+                ]),
+            ),
+        ];
+        for (s, exp) in tests {
+            let res = parse_str(s, true, true, false);
+            assert_eq!(res, exp);
+        }
     }
 
     #[test]
