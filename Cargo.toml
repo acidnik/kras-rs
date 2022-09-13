@@ -1,6 +1,6 @@
 [package]
 name = "kras"
-version = "0.4.1"
+version = "0.4.2"
 authors = ["Nikita Bilous <nikita@bilous.me>"]
 edition = "2021"
 
@@ -25,6 +25,7 @@ env_logger = "0.9.0"
 chrono = "0.4.19"
 crossbeam = "0.8.1"
 num_cpus = "1.13.0"
+signal-hook = "0.3.14"
 
 [dev-dependencies]
 rand = "0.8.4"

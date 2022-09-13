@@ -9,7 +9,7 @@ use std::{
     env,
     io::{BufRead, BufReader, Read, Write},
     str::FromStr,
-    thread,
+    thread, sync::{Arc, atomic::AtomicBool},
 };
 extern crate chrono;
 #[macro_use]
@@ -32,6 +32,8 @@ extern crate pretty;
 
 extern crate num_cpus;
 
+extern crate signal_hook;
+
 use crossbeam::channel::bounded;
 use pretty::termcolor::ColorChoice;
 
@@ -47,8 +49,11 @@ mod stopwatch;
 
 mod printer;
 use printer::Printer;
+use signal_hook::consts::SIGPIPE;
 
 fn main() {
+    let signal_flag = Arc::new(AtomicBool::new(false));
+    signal_hook::flag::register(SIGPIPE, Arc::clone(&signal_flag)).unwrap();
     let matches = App::new(crate_name!())
         .version(crate_version!())
         .author(crate_authors!("\n"))
@@ -174,33 +179,45 @@ fn main() {
         let input_receiver = input_receiver.clone();
         let output_sender = output_sender.clone();
         thread::spawn(move || {
+            let signal_flag = Arc::new(AtomicBool::new(false));
+            signal_hook::flag::register(SIGPIPE, Arc::clone(&signal_flag)).unwrap();
             while let Ok((i, s)) = input_receiver.recv() {
                 let line = parse_str(&s, sort, recursive, robust);
                 debug!("line = {:?}", line);
                 let rendered_str = line.render(indent, min_len, color_choice);
-                output_sender.send((i, rendered_str)).expect("send");
+                if let Err(err) = output_sender.send((i, rendered_str)) {
+                    // likely a pipe is closed on us
+                    debug!("send error: {}", err);
+                    break;
+                }
             }
         });
     });
+    drop(input_receiver);
 
     if multiline {
         let mut buf = Vec::new();
         reader.read_to_end(&mut buf).unwrap();
         let input = std::str::from_utf8(&buf).unwrap().to_string();
-        input_sender.send((0, input)).expect("input send");
-        // in else branch input_sender is moved to closure and gets dropped when for_each ends
-        // here we have to drop it ourselves
+        input_sender.send((0, input)).unwrap_or(());
         drop(input_sender);
     }
     else {
-        reader.lines().enumerate().for_each(move |(i, line)| match line {
-            Ok(s) => {
-                input_sender.send((i, s)).expect("input send");
+        for (i, line) in reader.lines().enumerate() {
+            match line {
+                Ok(s) => {
+                    if let Err(err) = input_sender.send((i, s)) {
+                        debug!("send error: {}", err);
+                        break;
+                    }
+                },
+                Err(err) => {
+                    error!("{:?}", err);
+                    // break;
+                }
             }
-            Err(err) => {
-                error!("{:?}", err);
-            }
-        });
+        }
+        drop(input_sender);
     }
 
     drop(output_sender);

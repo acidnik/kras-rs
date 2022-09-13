@@ -25,10 +25,13 @@ impl Printer {
         let thread = std::thread::spawn(move || {
             let stdout = std::io::stdout();
             let mut stdout = stdout.lock();
-            while let Ok((i, line)) = receiver.recv() {
+            'recv: while let Ok((i, line)) = receiver.recv() {
                 max_qlen = usize::max(max_qlen, output_queue.len());
                 if i == next_line_num {
-                    writeln!(stdout, "{}", line).unwrap();
+                    if let Err(err) = writeln!(stdout, "{}", line) {
+                        error!("write error {}", err);
+                        break 'recv;
+                    }
                     next_line_num += 1;
                 }
                 else {
@@ -37,16 +40,22 @@ impl Printer {
 
                 if let Some(Reverse((i, line))) = output_queue.peek() {
                     if *i == next_line_num {
-                        writeln!(stdout, "{}", line).unwrap();
+                        if let Err(err) = writeln!(stdout, "{}", line) {
+                            debug!("write error: {}", err);
+                            break 'recv;
+                        }
                         next_line_num += 1;
                         output_queue.pop();
                     }
                 }
             }
             while let Some(Reverse((_, line))) = output_queue.pop() {
-                writeln!(stdout, "{}", line).unwrap();
+                if let Err(err) = writeln!(stdout, "{}", line) {
+                    debug!("write error: {}", err);
+                    break;
+                }
             }
-            debug!("max queue len = {max_qlen}", max_qlen = max_qlen)
+            debug!("max queue len = {max_qlen}", max_qlen = max_qlen);
         });
         Printer { thread: thread }
     }
