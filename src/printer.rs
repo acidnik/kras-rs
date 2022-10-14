@@ -29,7 +29,12 @@ impl Printer {
                 max_qlen = usize::max(max_qlen, output_queue.len());
                 if i == next_line_num {
                     if let Err(err) = writeln!(stdout, "{}", line) {
-                        error!("write error {}", err);
+                        if err.kind() == std::io::ErrorKind::BrokenPipe {
+                            debug!("write error {}", err);
+                        }
+                        else {
+                            error!("write error {}", err);
+                        }
                         break 'recv;
                     }
                     next_line_num += 1;
@@ -41,7 +46,12 @@ impl Printer {
                 if let Some(Reverse((i, line))) = output_queue.peek() {
                     if *i == next_line_num {
                         if let Err(err) = writeln!(stdout, "{}", line) {
-                            debug!("write error: {}", err);
+                            if err.kind() == std::io::ErrorKind::BrokenPipe {
+                                debug!("write error {}", err);
+                            }
+                            else {
+                                error!("write error {}", err);
+                            }
                             break 'recv;
                         }
                         next_line_num += 1;
@@ -51,7 +61,12 @@ impl Printer {
             }
             while let Some(Reverse((_, line))) = output_queue.pop() {
                 if let Err(err) = writeln!(stdout, "{}", line) {
-                    debug!("write error: {}", err);
+                    if err.kind() == std::io::ErrorKind::BrokenPipe {
+                        debug!("write error {}", err);
+                    }
+                    else {
+                        error!("write error {}", err);
+                    }
                     break;
                 }
             }
