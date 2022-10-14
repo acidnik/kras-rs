@@ -1,6 +1,6 @@
 [package]
 name = "kras"
-version = "0.4.2"
+version = "0.4.3"
 authors = ["Nikita Bilous <nikita@bilous.me>"]
 edition = "2021"
 
