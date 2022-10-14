@@ -182,10 +182,10 @@ pub fn parse_str(s: &str, sort: bool, recursive: bool, robust: bool) -> KrasValu
     let buf = s.chars().collect::<Vec<_>>();
     let mut start = 0;
     let iter: Box<dyn Iterator<Item = (usize, &[char])>> = if robust {
-        Box::new(DetectDataIter::new(&buf))
+        Box::new(DetectDataV2::new(&buf))
     }
     else {
-        Box::new(DetectDataV2::new(&buf))
+        Box::new(DetectDataIter::new(&buf))
     };
     for (pos, data) in iter {
         debug!("DETECT: {}", String::from_iter(data));
@@ -242,7 +242,7 @@ mod test {
         }
         assert!(false, "{:?} != {:?}", res, expected);
     }
-    
+
     #[test]
     fn test_parse_str() {
         let tests = vec![
