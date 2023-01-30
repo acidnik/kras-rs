@@ -106,7 +106,7 @@ fn pair_delim<'a>() -> Parser<'a, char, String> {
 }
 
 fn array_delim<'a>() -> Parser<'a, char, String> {
-    let delim = space() * sym(',') - space();
+    let delim = space() * one_of(",;") - space();
     delim.map(|c| c.to_string())
 }
 

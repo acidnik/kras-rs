@@ -174,12 +174,14 @@ impl KrasValue {
         // ':' - spaces to the right ': '
         // '=' - no spaces
         // ',' - ', '
+        // ';' - '; '
         let ds: &str = &d;
         match ds {
             "=>" => RcDoc::space().append(RcDoc::text(d)).append(RcDoc::space()),
             ":" => RcDoc::text(d).append(RcDoc::space()),
             "=" => RcDoc::text(d),
             "," => RcDoc::text(d).append(RcDoc::space()),
+            ";" => RcDoc::text(d).append(RcDoc::space()),
             " " => RcDoc::text(d),
             _ => panic!("unexpected kv delim ['{}']", d),
         }
