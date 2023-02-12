@@ -28,12 +28,12 @@ impl Printer {
             'recv: while let Ok((i, line)) = receiver.recv() {
                 max_qlen = usize::max(max_qlen, output_queue.len());
                 if i == next_line_num {
-                    if let Err(err) = writeln!(stdout, "{}", line) {
+                    if let Err(err) = writeln!(stdout, "{line}") {
                         if err.kind() == std::io::ErrorKind::BrokenPipe {
-                            debug!("write error {}", err);
+                            debug!("write error {err}");
                         }
                         else {
-                            error!("write error {}", err);
+                            error!("write error {err}");
                         }
                         break 'recv;
                     }
@@ -45,12 +45,12 @@ impl Printer {
 
                 if let Some(Reverse((i, line))) = output_queue.peek() {
                     if *i == next_line_num {
-                        if let Err(err) = writeln!(stdout, "{}", line) {
+                        if let Err(err) = writeln!(stdout, "{line}") {
                             if err.kind() == std::io::ErrorKind::BrokenPipe {
-                                debug!("write error {}", err);
+                                debug!("write error {err}");
                             }
                             else {
-                                error!("write error {}", err);
+                                error!("write error {err}");
                             }
                             break 'recv;
                         }
@@ -60,17 +60,17 @@ impl Printer {
                 }
             }
             while let Some(Reverse((_, line))) = output_queue.pop() {
-                if let Err(err) = writeln!(stdout, "{}", line) {
+                if let Err(err) = writeln!(stdout, "{line}") {
                     if err.kind() == std::io::ErrorKind::BrokenPipe {
-                        debug!("write error {}", err);
+                        debug!("write error {err}");
                     }
                     else {
-                        error!("write error {}", err);
+                        error!("write error {err}");
                     }
                     break;
                 }
             }
-            debug!("max queue len = {max_qlen}", max_qlen = max_qlen);
+            debug!("max queue len = {max_qlen}");
         });
         Printer { thread: thread }
     }

@@ -8,7 +8,6 @@
 use std::{
     env,
     io::{BufRead, BufReader, Read, Write},
-    str::FromStr,
     thread, sync::{Arc, atomic::AtomicBool},
 };
 extern crate chrono;
@@ -19,9 +18,9 @@ extern crate env_logger;
 extern crate atty;
 
 extern crate clap;
-use clap::{crate_authors, crate_description, crate_name, crate_version, App, Arg};
 
 extern crate fileinput;
+use clap::{Parser, ValueEnum};
 use fileinput::FileInput;
 
 extern crate crossbeam;
@@ -51,93 +50,125 @@ mod printer;
 use printer::Printer;
 use signal_hook::consts::SIGPIPE;
 
+#[derive(Clone, Debug, ValueEnum)]
+enum ColorChoiceArg {
+    Auto,
+    Yes,
+    No,
+}
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    #[arg(
+        short = 'i',
+        long,
+        help="identation. 0 to disable (colorization is still performed)",
+        default_value_t = 2
+    )]
+    indent: usize,
+
+    #[arg(
+        value_enum,
+        short='c',
+        long,
+        help="colorize output",
+        default_value_t = ColorChoiceArg::Auto,
+    )]
+    color: ColorChoiceArg,
+
+    #[arg(
+        short='C',
+        long,
+        help="alias for --color yes",
+        default_value_t = false,
+    )]
+    force_color: bool,
+
+    #[arg(
+        short='s',
+        long,
+        help="sort keys",
+        default_value_t = false,
+    )]
+    sort: bool,
+
+    #[arg(
+        short='r',
+        long,
+        help="try to parse nested strings",
+        default_value_t = false,
+    )]
+    recursive: bool,
+
+    #[arg(
+        short='j',
+        long,
+        help="number of parallel jobs. Default is num_cpus",
+        default_value_t = num_cpus::get(),
+    )]
+    jobs: usize,
+
+    #[arg(
+        short='w',
+        long,
+        help="maximum width of output",
+        default_value_t = 80,
+    )]
+    width: usize,
+
+    #[arg(
+        short='m',
+        long,
+        help="look for data spannding several lines. This will read wholle input to memory",
+        default_value_t = false,
+    )]
+    multiline: bool,
+
+    #[arg(
+        long,
+        help="use more robust, but slower method to detect structured data",
+        default_value_t = false,
+    )]
+    robust: bool,
+
+    #[arg(
+        long,
+        help="debut mode",
+        default_value_t = false,
+    )]
+    debug: bool,
+
+    #[arg(
+        index(1),
+        help="Input files or stdin",
+    )]
+    input: Vec<String>,
+}
+
 fn main() {
     let signal_flag = Arc::new(AtomicBool::new(false));
     signal_hook::flag::register(SIGPIPE, Arc::clone(&signal_flag)).unwrap();
-    let matches = App::new(crate_name!())
-        .version(crate_version!())
-        .author(crate_authors!("\n"))
-        .about(crate_description!())
-        .arg(
-            Arg::with_name("indent")
-                .short("i")
-                .long("indent")
-                .help("indentation. 0 to disable (colorization is stil performed)")
-                .default_value("2"),
-        )
-        .arg(
-            Arg::with_name("color")
-                .short("c")
-                .long("color")
-                .default_value("auto")
-                .possible_values(&["yes", "no", "auto"])
-                .help("colorize output"),
-        )
-        .arg(
-            Arg::with_name("force_color")
-                .short("C")
-                .long("force-color")
-                .help("alias for --color yes"),
-        )
-        .arg(Arg::with_name("sort").short("s").long("sort").help("sort keys"))
-        .arg(
-            Arg::with_name("recursive")
-                .short("r")
-                .long("recursive")
-                .help("try to parse nested strings"),
-        )
-        .arg(
-            Arg::with_name("jobs")
-                .short("j")
-                .takes_value(true)
-                .help("number of parallel jobs. Default is num_cpus"),
-        )
-        .arg(
-            Arg::with_name("width")
-                .short("w")
-                .long("width")
-                .help("maximum width of output")
-                .default_value("80"),
-        )
-        .arg(
-            Arg::with_name("multiline")
-                .short("m")
-                .long("multiline")
-                .help("look for data spanning several lines. This will read whole input to memory"),
-        )
-        .arg(
-            Arg::with_name("robust")
-                .long("robust")
-                .help("use more robust, but slower method to detect structured data"),
-        )
-        .arg(Arg::with_name("debug").long("debug").help("debug mode"))
-        .arg(
-            Arg::with_name("input")
-                .index(1)
-                .multiple(true)
-                .help("Input files or stdin"),
-        )
-        .get_matches();
-    init_logger(if matches.is_present("debug") { 2 } else { 0 });
-    let indent = usize::from_str(matches.value_of("indent").unwrap()).unwrap();
-    let min_len = if indent == 0 {
+
+    let args = Cli::parse();
+
+    init_logger(if args.debug {2} else {0});
+
+    let min_len = if args.indent == 0 {
         std::usize::MAX
     }
     else {
-        usize::from_str(matches.value_of("width").unwrap()).unwrap()
+        args.width
     };
-    let files = matches
-        .values_of("input")
-        .map(|fs| fs.collect::<Vec<_>>())
-        .unwrap_or_default();
-    let color_choice = if matches.is_present("force_color") {
+
+    let color_choice = if args.force_color {
         ColorChoice::Always
     }
     else {
-        match matches.value_of("color").unwrap() {
-            "yes" => ColorChoice::Always,
-            "no" => ColorChoice::Never,
-            "auto" => {
+        match args.color {
+            ColorChoiceArg::Yes => ColorChoice::Always,
+            ColorChoiceArg::No => ColorChoice::Never,
+            ColorChoiceArg::Auto => {
                 if atty::is(atty::Stream::Stdout) {
                     ColorChoice::Auto
                 }
@@ -145,27 +176,19 @@ fn main() {
                     ColorChoice::Never
                 }
             }
-            _ => unreachable!(),
         }
     };
-    let sort = matches.is_present("sort");
-    let recursive = matches.is_present("recursive");
-    let multiline = matches.is_present("multiline");
-    let jobs = if multiline {
+
+    let jobs = if args.multiline {
         1
     }
     else {
-        match matches.value_of("jobs") {
-            Some(v) => usize::from_str(v).unwrap(),
-            None => num_cpus::get(),
-        }
+        args.jobs
     };
-
-    let robust = matches.is_present("robust");
 
     // ---- done parsing arguments. prepare to read from files
 
-    let input = FileInput::new(&files);
+    let input = FileInput::new(&args.input);
     let mut reader = BufReader::new(input);
 
     // pipeline: input lines => input_sender => [worker] input_receiver => output_sender => [printer] output_receiver
@@ -182,9 +205,9 @@ fn main() {
             let signal_flag = Arc::new(AtomicBool::new(false));
             signal_hook::flag::register(SIGPIPE, Arc::clone(&signal_flag)).unwrap();
             while let Ok((i, s)) = input_receiver.recv() {
-                let line = parse_str(&s, sort, recursive, robust);
+                let line = parse_str(&s, args.sort, args.recursive, args.robust);
                 debug!("line = {:?}", line);
-                let rendered_str = line.render(indent, min_len, color_choice);
+                let rendered_str = line.render(args.indent, min_len, color_choice);
                 if let Err(err) = output_sender.send((i, rendered_str)) {
                     // likely a pipe is closed on us
                     debug!("send error: {}", err);
@@ -195,7 +218,7 @@ fn main() {
     });
     drop(input_receiver);
 
-    if multiline {
+    if args.multiline {
         let mut buf = Vec::new();
         reader.read_to_end(&mut buf).unwrap();
         let input = std::str::from_utf8(&buf).unwrap().to_string();
@@ -230,7 +253,7 @@ fn init_logger(level: usize) {
         writeln!(
             buf,
             "[{date}] [{level}] {module} | {file}:{line} | {message}",
-            date = chrono::Local::now().format("%H:%M:%S%.3f").to_string(),
+            date = chrono::Local::now().format("%H:%M:%S%.3f"),
             level = record.level(),
             module = record.module_path().unwrap_or_default(),
             file = record.file().unwrap_or_default(),

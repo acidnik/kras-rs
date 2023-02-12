@@ -137,9 +137,6 @@ mod test {
         iter::FromIterator,
     };
 
-    use permutator::XPermutationIterator;
-    use rand::prelude::*;
-
     use super::*;
 
     #[test]

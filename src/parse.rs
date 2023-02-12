@@ -155,7 +155,7 @@ impl KrasVisitor for RecursiveStringParser {
             let mut inner = parse_str(s, self.0, true, self.1);
             debug!("rec parse: {:?}", inner);
             if let KrasValue::RawList(ref mut items) = inner {
-                if items.len() == 0 {
+                if items.is_empty() {
                     // parset Str("") as RawList([])
                     // do nothing and keep the val as is
                 }

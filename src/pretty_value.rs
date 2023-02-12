@@ -183,7 +183,7 @@ impl KrasValue {
             "," => RcDoc::text(d).append(RcDoc::space()),
             ";" => RcDoc::text(d).append(RcDoc::space()),
             " " => RcDoc::text(d),
-            _ => panic!("unexpected kv delim ['{}']", d),
+            _ => panic!("unexpected kv delim ['{d}']"),
         }
     }
 

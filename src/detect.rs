@@ -89,7 +89,7 @@ pub fn get_open(c: char) -> char {
         ']' => '[',
         '}' => '{',
         '>' => '<',
-        _ => panic!("wrong close char {:?}", c),
+        _ => panic!("wrong close char {c:?}"),
     }
 }
 
@@ -100,7 +100,7 @@ fn get_close(c: char) -> char {
         '[' => ']',
         '{' => '}',
         '<' => '>',
-        _ => panic!("wrong open char {:?}", c),
+        _ => panic!("wrong open char {c:?}"),
     }
 }
 
@@ -193,9 +193,6 @@ mod test {
         collections::{HashSet, VecDeque},
         iter::FromIterator,
     };
-
-    use permutator::XPermutationIterator;
-    use rand::prelude::*;
 
     use super::*;
 
@@ -301,40 +298,5 @@ mod test {
             let res = dumb(t);
             assert_eq!(res, exp);
         }
-    }
-
-    // #[test]
-    fn test_each() {
-        init();
-
-        let mut chars = b"[]{}[]<>".iter().collect::<Vec<_>>();
-        let combinations = XPermutationIterator::new(&mut chars, |_| true);
-        let mut tests = HashSet::<String>::new();
-        for c in combinations {
-            tests.insert(String::from_utf8(c.iter().map(|i| ***i).collect()).unwrap());
-        }
-        let mut _t = Stopwatch::new("dumb", 10);
-        for t in &tests {
-            let input = t.chars().collect::<Vec<_>>();
-            let expected = dumb(&t);
-            // let res = DetectDataIter::new(&input, false).map(|s| String::from_iter(s.1)).collect::<Vec<_>>();
-            // if res.len() < expected.len() {
-            //     trace!("XXX from {:?} res={:?} # expected={:?}", t, res, expected);
-            // }
-            // assert_eq!(res, expected);
-        }
-        _t.stop();
-
-        let mut _t = Stopwatch::new("smart", 10);
-        for t in tests {
-            let input = t.chars().collect::<Vec<_>>();
-            let expected = dumb(&t);
-            // let res = DetectDataIter::new(&input, false).map(|s| String::from_iter(s.1)).collect::<Vec<_>>();
-            // if res.len() < expected.len() {
-            //     trace!("XXX from {:?} res={:?} # expected={:?}", t, res, expected);
-            // }
-            // assert_eq!(res, expected);
-        }
-        _t.stop();
     }
 }
