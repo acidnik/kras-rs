@@ -7,41 +7,47 @@ This tool can find structured data of any kind inside of plain string, parse it 
 
 ![](https://github.com/acidnik/kras-rs/raw/master/screenshot.png)
 
-It can detect and parse almost any kind of data:  
-json  
-python  
-rust  
+It can detect and parse almost any kind of data:
+* json
+* python
+* rust
 
 and probably many more. Don't hesitate to open an issue if your data wasn't processed correctly
 
-USAGE:
-======
+Installation
+============
 ```
-    kras [FLAGS] [OPTIONS] [input]...
+cargo install kras-rs
+```
 
-FLAGS:
-        --debug          debug mode
-    -C, --force-color    alias for --color yes
-    -h, --help           Prints help information
-    -m, --multiline      look for data spanning several lines. This will read whole input to memory
-    -r, --recursive      try to parse nested strings
-        --robust         use more robust, but slower method to detect structured data
-    -s, --sort           sort keys
-    -V, --version        Prints version information
 
-OPTIONS:
-    -c, --color <color>      colorize output [default: auto]  [possible values: yes, no, auto]
-    -i, --indent <indent>    indentation. 0 to disable (colorization is stil performed) [default: 2]
-    -j <jobs>                number of parallel jobs. Default is num_cpus
-    -w, --width <width>      maximum width of output [default: 80]
+Usage
+=====
+```
+Usage: kras [OPTIONS] [INPUT]...
 
-ARGS:
-    <input>...    Input files or stdin
+Arguments:
+  [INPUT]...  Input files or stdin
+
+Options:
+  -i, --indent <INDENT>  identation. 0 to disable (colorization is still performed) [default: 2]
+  -c, --color <COLOR>    colorize output [default: auto] [possible values: auto, yes, no]
+  -C, --force-color      alias for --color yes
+  -s, --sort             sort keys
+  -r, --recursive        try to parse nested strings
+  -j, --jobs <JOBS>      number of parallel jobs. Default is num_cpus
+  -w, --width <WIDTH>    maximum width of output [default: 80]
+  -m, --multiline        look for data spannding several lines. This will read wholle input to memory
+      --robust           use more robust, but slower method to detect structured data
+      --debug            debut mode
+  -h, --help             Print help
+  -V, --version          Print version
+
 ```
 
 Using with pgcli
 ================
-`kras` really shines when used for reading jsons stored in database. For pgcli add to your `.config/pgcli/config`  
+`kras` really shines when used for reading jsons stored in database. For pgcli add to your `.config/pgcli/config`
 ```
 pager = kras -Csw120 | less -iRXF
 ```
